@@ -1,11 +1,11 @@
 package neofontrender.core.font.skia;
 
+import io.github.humbleui.skija.Bitmap;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Data;
-import io.github.humbleui.skija.EncodedImageFormat;
 import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
-import io.github.humbleui.skija.Image;
+import io.github.humbleui.skija.ImageInfo;
 import io.github.humbleui.skija.Surface;
 import io.github.humbleui.skija.Typeface;
 import io.github.humbleui.skija.paragraph.FontCollection;
@@ -26,13 +26,12 @@ import net.minecraft.util.ResourceLocation;
 import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -176,28 +175,49 @@ public final class SkijaTextRenderer implements AutoCloseable {
                 Canvas canvas = surface.getCanvas();
                 canvas.clear(0x00000000);
                 paragraph.paint(canvas, 2.0F * oversample, paintY);
-                try (Image snapshot = surface.makeImageSnapshot();
-                     Data data = snapshot.encodeToData(EncodedImageFormat.PNG)) {
-                    BufferedImage image = ImageIO.read(new ByteArrayInputStream(data.getBytes()));
-                    if (image == null) {
-                        throw new IOException("Skija PNG encode returned unreadable image");
-                    }
-                    int[] pixels = image.getRGB(0, 0, image.getWidth(), image.getHeight(), null, 0, image.getWidth());
-                    DynamicTexture texture = new DynamicTexture(image.getWidth(), image.getHeight());
-                    int[] target = texture.getTextureData();
-                    System.arraycopy(pixels, 0, target, 0, Math.min(pixels.length, target.length));
-                    texture.updateDynamicTexture();
-                    texture.setBlurMipmap(NeofontrenderConfig.renderingInterpolation(), NeofontrenderConfig.renderingMipmap());
 
-                    ResourceLocation location = new ResourceLocation("neofontrender",
-                            "skia/" + Integer.toHexString(key.hashCode()) + "_" + nextTextureId++);
-                    textureManager.loadTexture(location, texture);
-                    texture.setBlurMipmap(NeofontrenderConfig.renderingInterpolation(), NeofontrenderConfig.renderingMipmap());
-                    return new RenderedText(location, texture, measuredWidth,
-                            image.getWidth(), image.getHeight(),
-                            image.getWidth() / oversample, image.getHeight() / oversample,
-                            verticalOffset);
+                // Read pixels directly from Skia surface — no PNG encode/decode
+                Bitmap bitmap = new Bitmap();
+                bitmap.allocN32Pixels(width, height);
+                surface.readPixels(bitmap, 0, 0);
+
+                byte[] rawBytes = bitmap.readPixels();
+                bitmap.close();
+
+                // Bitmap.readPixels() returns bytes in native memory order.
+                // On x86 N32 = BGRA_8888: bytes are [B,G,R,A] per pixel.
+                // ByteBuffer.LITTLE_ENDIAN interprets [B,G,R,A] as int 0xAARRGGBB (ARGB),
+                // which is exactly what DynamicTexture / Minecraft expects.
+                int[] pixels = new int[width * height];
+                ByteBuffer.wrap(rawBytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().get(pixels);
+
+                // Unpremultiply: Skia renders with premultiplied alpha,
+                // Minecraft expects straight alpha for texture blending.
+                for (int i = 0; i < pixels.length; i++) {
+                    int px = pixels[i];
+                    int a = (px >>> 24);
+                    if (a > 0 && a < 255) {
+                        int r = Math.min(255, ((px >> 16) & 0xFF) * 255 / a);
+                        int g = Math.min(255, ((px >> 8) & 0xFF) * 255 / a);
+                        int b = Math.min(255, (px & 0xFF) * 255 / a);
+                        pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
+                    }
                 }
+
+                DynamicTexture texture = new DynamicTexture(width, height);
+                int[] target = texture.getTextureData();
+                System.arraycopy(pixels, 0, target, 0, Math.min(pixels.length, target.length));
+                texture.updateDynamicTexture();
+                texture.setBlurMipmap(NeofontrenderConfig.renderingInterpolation(), NeofontrenderConfig.renderingMipmap());
+
+                ResourceLocation location = new ResourceLocation("neofontrender",
+                        "skia/" + Integer.toHexString(key.hashCode()) + "_" + nextTextureId++);
+                textureManager.loadTexture(location, texture);
+                texture.setBlurMipmap(NeofontrenderConfig.renderingInterpolation(), NeofontrenderConfig.renderingMipmap());
+                return new RenderedText(location, texture, measuredWidth,
+                        width, height,
+                        width / oversample, height / oversample,
+                        verticalOffset);
             }
         }
     }
