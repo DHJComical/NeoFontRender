@@ -2,7 +2,7 @@
 
 All notable changes to Neo Font Render will be documented in this file.
 
-## [0.2.0] - Unreleased
+## [0.2.1] - Unreleased
 
 ### Added
 - Added a backend abstraction layer with `TextRenderBackend` and `TextRenderResult` so advanced text renderers no longer couple directly to the FontRenderer mixin surface.
@@ -15,6 +15,7 @@ All notable changes to Neo Font Render will be documented in this file.
 - Updated `FontManager` to select renderers through the backend abstraction and to fall back to the AWT atlas renderer when Skija is unsupported or initialization fails.
 - Updated FontRenderer integration, commands, and GUI test surfaces to consume backend abstractions instead of directly referencing Skija implementation types.
 - Kept the layout cache package as a future-facing seam instead of forcing it into the current Skija hot path.
+- Changed the default renderer preset to Skia with oversample `12.0`, adaptive raster scale on, interpolation off, mipmap on, enhanced pipeline off, shader compensation off, brightness `0.0`, and texture edge bleed off.
 
 ## [0.1.0]
 

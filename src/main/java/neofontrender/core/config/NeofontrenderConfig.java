@@ -74,7 +74,7 @@ public final class NeofontrenderConfig {
     }
 
     public static float fontOversample() {
-        return getFloat("font.oversample", 8.0f);
+        return getFloat("font.oversample", 12.0f);
     }
 
     public static boolean fontAutoBaseline() {
@@ -121,7 +121,7 @@ public final class NeofontrenderConfig {
 
     // ===================== Rendering =====================
     public static String renderingEngine() {
-        return normalizeRenderingEngine(config.getOrElse("rendering.engine", "sfr"));
+        return normalizeRenderingEngine(config.getOrElse("rendering.engine", "skia"));
     }
 
     public static boolean useSfrEngine() {
@@ -141,11 +141,11 @@ public final class NeofontrenderConfig {
     }
 
     public static boolean renderingInterpolation() {
-        return config.getOrElse("rendering.interpolation", true);
+        return config.getOrElse("rendering.interpolation", false);
     }
 
     public static boolean renderingMipmap() {
-        return config.getOrElse("rendering.mipmap", false);
+        return config.getOrElse("rendering.mipmap", true);
     }
 
     public static boolean adaptiveRasterScale() {
@@ -157,15 +157,15 @@ public final class NeofontrenderConfig {
     }
 
     public static boolean shaderTextPipeline() {
-        return config.getOrElse("rendering.shaderTextPipeline", true);
+        return config.getOrElse("rendering.shaderTextPipeline", false);
     }
 
     public static float renderingBrightness() {
-        return getFloat("rendering.brightness", 3.0f);
+        return getFloat("rendering.brightness", 0.0f);
     }
 
     public static boolean textureEdgeBleed() {
-        return config.getOrElse("rendering.textureEdgeBleed", true);
+        return config.getOrElse("rendering.textureEdgeBleed", false);
     }
 
     // ===================== Performance =====================
@@ -358,7 +358,7 @@ public final class NeofontrenderConfig {
             w.write("fallbacks = [\"Serif\", \"Monospaced\"]\n");
             w.write("style = 0\n");
             w.write("size = 8.0\n");
-            w.write("oversample = 8.0\n");
+            w.write("oversample = 12.0\n");
             w.write("autoBaseline = true\n");
             w.write("baselineShift = 0.0\n");
             w.write("referenceBaseline = 7.0\n");
@@ -372,15 +372,15 @@ public final class NeofontrenderConfig {
             w.write("opacity = 0.25\n");
             w.write("\n");
             w.write("[rendering]\n");
-            w.write("engine = \"sfr\"\n");
+            w.write("engine = \"skia\"\n");
             w.write("skiaAdvancedStringMode = true\n");
-            w.write("interpolation = true\n");
-            w.write("mipmap = false\n");
+            w.write("interpolation = false\n");
+            w.write("mipmap = true\n");
             w.write("adaptiveRasterScale = true\n");
             w.write("enhancedTextPipeline = false\n");
-            w.write("shaderTextPipeline = true\n");
-            w.write("brightness = 3.0\n");
-            w.write("textureEdgeBleed = true\n");
+            w.write("shaderTextPipeline = false\n");
+            w.write("brightness = 0.0\n");
+            w.write("textureEdgeBleed = false\n");
             w.write("\n");
             w.write("[performance]\n");
             w.write("asyncInit = true\n");
