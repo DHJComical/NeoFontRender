@@ -12,8 +12,8 @@
   "panel": {
     "background": {
       "type": "rectangle",
-      "cornerRadius": 8,
-      "cornerSegments": 8,
+      "cornerRadius": 0,
+      "cornerSegments": 0,
       "color": "#F0121822"
     }
   },

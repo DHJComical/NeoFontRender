@@ -75,17 +75,18 @@ public class FontManager implements AutoCloseable {
         List<GlyphProvider> providers = new ArrayList<>();
 
         boolean ttfLoaded = false;
+        float rasterScale = FontRenderTuning.rasterScale(NeofontrenderConfig.fontOversample());
         for (String fontName : NeofontrenderConfig.fontFamily()) {
             try {
-                AwtTtfGlyphProvider ttf = loadAwtFont(resourceManager, fontName, false);
+                AwtTtfGlyphProvider ttf = loadAwtFont(resourceManager, fontName, rasterScale, false);
                 if (ttf == null) {
                     neofontrender.NeoFontRender.LOGGER.warn("Skipped unavailable fallback font '{}'", fontName);
                     continue;
                 }
                 providers.add(ttf);
                 ttfLoaded = true;
-                neofontrender.NeoFontRender.LOGGER.info("Loaded AWT font '{}' (size={}, oversample={}, autoBaseline={}, baselineShift={})",
-                        fontName, NeofontrenderConfig.fontSize(), NeofontrenderConfig.fontOversample(),
+                neofontrender.NeoFontRender.LOGGER.info("Loaded AWT font '{}' (size={}, oversample={} effective={}, autoBaseline={}, baselineShift={})",
+                        fontName, NeofontrenderConfig.fontSize(), NeofontrenderConfig.fontOversample(), rasterScale,
                         NeofontrenderConfig.fontAutoBaseline(), NeofontrenderConfig.fontBaselineShift());
             } catch (Exception e) {
                 neofontrender.NeoFontRender.LOGGER.error("Failed to load font '{}'", fontName, e);
@@ -94,7 +95,7 @@ public class FontManager implements AutoCloseable {
 
         if (!ttfLoaded) {
             try {
-                AwtTtfGlyphProvider ttf = loadAwtFont(resourceManager, null, true);
+                AwtTtfGlyphProvider ttf = loadAwtFont(resourceManager, null, rasterScale, true);
                 if (ttf != null) {
                     providers.add(ttf);
                     ttfLoaded = true;
@@ -113,7 +114,7 @@ public class FontManager implements AutoCloseable {
 
         providers.add(new MissingGlyphProvider());
 
-        FontTexture atlas = new FontTexture(textureManager, new net.minecraft.util.ResourceLocation("neofontrender", "default"));
+        FontTexture atlas = new FontTexture(textureManager, new net.minecraft.util.ResourceLocation("neofontrender", "default"), rasterScale);
         this.defaultFontSet = new FontSet(providers, atlas);
         if (NeofontrenderConfig.performancePrewarmBasicLatin()) {
             this.defaultFontSet.prewarmBasicLatin();
@@ -123,12 +124,13 @@ public class FontManager implements AutoCloseable {
         neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with {} providers", providers.size());
     }
 
-    private AwtTtfGlyphProvider loadAwtFont(IResourceManager resourceManager, String fontName, boolean allowDefaultFallback) throws Exception {
+    private AwtTtfGlyphProvider loadAwtFont(IResourceManager resourceManager, String fontName,
+                                            float rasterScale, boolean allowDefaultFallback) throws Exception {
         return AwtTtfGlyphProvider.load(
                 resourceManager,
                 fontName,
                 NeofontrenderConfig.fontSize(),
-                NeofontrenderConfig.fontOversample(),
+                rasterScale,
                 0.0F, 0.0F,
                 NeofontrenderConfig.fontBaselineShift(),
                 NeofontrenderConfig.fontAutoBaseline(),

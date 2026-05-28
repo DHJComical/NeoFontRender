@@ -23,10 +23,12 @@ public class BakedGlyph {
     private final float right;
     private final float up;
     private final float down;
+    private final float rasterScale;
 
     public BakedGlyph(ResourceLocation textureLocation,
                       float u0, float u1, float v0, float v1,
-                      float left, float right, float up, float down) {
+                      float left, float right, float up, float down,
+                      float rasterScale) {
         this.textureLocation = textureLocation;
         this.u0 = u0;
         this.u1 = u1;
@@ -36,6 +38,7 @@ public class BakedGlyph {
         this.right = right;
         this.up = up;
         this.down = down;
+        this.rasterScale = rasterScale;
     }
 
     public ResourceLocation getTextureLocation() {
@@ -55,37 +58,40 @@ public class BakedGlyph {
      */
     public void render(boolean italic, float x, float y,
                        float red, float green, float blue, float alpha) {
-        float f = x + this.left;
-        float f1 = x + this.right;
+        float f = FontRenderTuning.alignToPixel(x + this.left);
+        float f1 = FontRenderTuning.alignToPixel(x + this.right);
         float f2 = this.up;
         float f3 = this.down;
-        float f4 = y + f2;
-        float f5 = y + f3;
+        float f4 = FontRenderTuning.alignToPixel(y + f2);
+        float f5 = FontRenderTuning.alignToPixel(y + f3);
         float slant0 = italic ? 1.0F - 0.25F * f2 : 0.0F;
         float slant1 = italic ? 1.0F - 0.25F * f3 : 0.0F;
+        FontRenderTuning.applyBoundTextureFilter(rasterScale);
 
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
+        try (FontRenderPipeline.State ignored = FontRenderPipeline.begin(rasterScale)) {
+            Tessellator tessellator = Tessellator.getInstance();
+            BufferBuilder buffer = tessellator.getBuffer();
+            buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
 
-        buffer.pos(f + slant0, f4, 0.0D)
-              .tex(this.u0, this.v0)
-              .color(red, green, blue, alpha)
-              .endVertex();
-        buffer.pos(f + slant1, f5, 0.0D)
-              .tex(this.u0, this.v1)
-              .color(red, green, blue, alpha)
-              .endVertex();
-        buffer.pos(f1 + slant1, f5, 0.0D)
-              .tex(this.u1, this.v1)
-              .color(red, green, blue, alpha)
-              .endVertex();
-        buffer.pos(f1 + slant0, f4, 0.0D)
-              .tex(this.u1, this.v0)
-              .color(red, green, blue, alpha)
-              .endVertex();
+            buffer.pos(f + slant0, f4, 0.0D)
+                  .tex(this.u0, this.v0)
+                  .color(red, green, blue, alpha)
+                  .endVertex();
+            buffer.pos(f + slant1, f5, 0.0D)
+                  .tex(this.u0, this.v1)
+                  .color(red, green, blue, alpha)
+                  .endVertex();
+            buffer.pos(f1 + slant1, f5, 0.0D)
+                  .tex(this.u1, this.v1)
+                  .color(red, green, blue, alpha)
+                  .endVertex();
+            buffer.pos(f1 + slant0, f4, 0.0D)
+                  .tex(this.u1, this.v0)
+                  .color(red, green, blue, alpha)
+                  .endVertex();
 
-        tessellator.draw();
+            tessellator.draw();
+        }
     }
 
     /**

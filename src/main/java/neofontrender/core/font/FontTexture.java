@@ -3,7 +3,6 @@ package neofontrender.core.font;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.util.ResourceLocation;
-import neofontrender.core.config.NeofontrenderConfig;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -19,15 +18,17 @@ import java.util.List;
 public class FontTexture implements AutoCloseable {
 
     private static final int PAGE_SIZE = 1024;
-    private static final int PADDING = 1;
+    private static final int PADDING = 2;
 
     private final TextureManager textureManager;
     private final ResourceLocation baseLocation;
+    private final float rasterScale;
     private final List<Page> pages = new ArrayList<>();
 
-    public FontTexture(TextureManager textureManager, ResourceLocation baseLocation) {
+    public FontTexture(TextureManager textureManager, ResourceLocation baseLocation, float rasterScale) {
         this.textureManager = textureManager;
         this.baseLocation = baseLocation;
+        this.rasterScale = rasterScale;
     }
 
     /**
@@ -64,7 +65,7 @@ public class FontTexture implements AutoCloseable {
         ResourceLocation pageLoc = new ResourceLocation(
                 baseLocation.getNamespace(),
                 baseLocation.getPath() + "/" + pages.size());
-        Page page = new Page(textureManager, pageLoc, PAGE_SIZE, PAGE_SIZE);
+        Page page = new Page(textureManager, pageLoc, PAGE_SIZE, PAGE_SIZE, rasterScale);
         pages.add(page);
         return page.add(pixels, pw, ph, left, right, up, down, oversample);
     }
@@ -86,24 +87,26 @@ public class FontTexture implements AutoCloseable {
         final ResourceLocation location;
         final int width;
         final int height;
+        final float rasterScale;
         final List<Shelf> shelves = new ArrayList<>();
         int usedHeight = 0;
 
-        Page(TextureManager textureManager, ResourceLocation location, int width, int height) {
+        Page(TextureManager textureManager, ResourceLocation location, int width, int height, float rasterScale) {
             this.texture = new DynamicTexture(width, height);
             this.location = location;
             this.width = width;
             this.height = height;
-            if (NeofontrenderConfig.isLoaded()) {
-                this.texture.setBlurMipmap(NeofontrenderConfig.renderingInterpolation(), NeofontrenderConfig.renderingMipmap());
-            }
-            // Clear to transparent black
+            this.rasterScale = rasterScale;
+            FontRenderTuning.applyFontTextureFilter(this.texture, rasterScale);
+            // Clear to transparent white so linear filtering does not pick up a dark fringe.
             int[] data = this.texture.getTextureData();
             for (int i = 0; i < data.length; i++) {
-                data[i] = 0;
+                data[i] = FontPixelUtils.TRANSPARENT_WHITE;
             }
             this.texture.updateDynamicTexture();
+            FontRenderTuning.applyFontTextureFilter(this.texture, rasterScale);
             textureManager.loadTexture(location, this.texture);
+            FontRenderTuning.applyFontTextureFilter(this.texture, rasterScale);
         }
 
         @Nullable
@@ -160,7 +163,8 @@ public class FontTexture implements AutoCloseable {
             return new BakedGlyph(
                     this.location,
                     u0, u1, v0, v1,
-                    left, right, up, down
+                    left, right, up, down,
+                    this.rasterScale
             );
         }
 

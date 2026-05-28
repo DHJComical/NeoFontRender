@@ -4,6 +4,7 @@ import net.minecraft.client.resources.IResource;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
 import neofontrender.core.font.BakedGlyph;
+import neofontrender.core.font.FontPixelUtils;
 import neofontrender.core.font.FontTexture;
 import neofontrender.core.font.GlyphInfo;
 import neofontrender.core.font.GlyphProvider;
@@ -390,6 +391,7 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
             g2d.dispose();
 
             int[] pixels = image.getRGB(0, 0, rasterW, rasterH, null, 0, rasterW);
+            FontPixelUtils.normalizeWhiteStraightAlpha(pixels);
 
             return atlas.add(pixels, rasterW, rasterH,
                     minX / oversample,

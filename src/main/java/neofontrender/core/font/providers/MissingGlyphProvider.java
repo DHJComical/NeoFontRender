@@ -1,6 +1,7 @@
 package neofontrender.core.font.providers;
 
 import neofontrender.core.font.BakedGlyph;
+import neofontrender.core.font.FontPixelUtils;
 import neofontrender.core.font.FontTexture;
 import neofontrender.core.font.GlyphInfo;
 import neofontrender.core.font.GlyphProvider;
@@ -43,7 +44,7 @@ public class MissingGlyphProvider implements GlyphProvider {
             for (int y = 0; y < BOX_HEIGHT; y++) {
                 for (int x = 0; x < BOX_WIDTH; x++) {
                     boolean border = x == 0 || x == BOX_WIDTH - 1 || y == 0 || y == BOX_HEIGHT - 1;
-                    pixels[y * BOX_WIDTH + x] = border ? 0xFFFFFFFF : 0x00000000;
+                    pixels[y * BOX_WIDTH + x] = border ? 0xFFFFFFFF : FontPixelUtils.TRANSPARENT_WHITE;
                 }
             }
             return atlas.add(pixels, BOX_WIDTH, BOX_HEIGHT,

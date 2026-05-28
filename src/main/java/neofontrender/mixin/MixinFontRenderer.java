@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import neofontrender.core.font.BakedGlyph;
 import neofontrender.core.font.FontSet;
 import neofontrender.core.font.FontManager;
+import neofontrender.core.font.FontRenderTuning;
 import neofontrender.core.font.GlyphInfo;
 import neofontrender.core.font.skia.SkijaTextRenderer;
 import neofontrender.core.config.NeofontrenderConfig;
@@ -49,6 +50,7 @@ public class MixinFontRenderer {
     @Inject(method = "drawString(Ljava/lang/String;FFIZ)I", at = @At("HEAD"), cancellable = true)
     private void sfr$onDrawString(String text, float x, float y, int color, boolean dropShadow,
                                   CallbackInfoReturnable<Integer> cir) {
+        FontRenderTuning.updateFromCurrentGlState();
         if (!sfr$shouldHook() || text == null || !FontManager.INSTANCE.isSkiaActive()
                 || !NeofontrenderConfig.skiaAdvancedStringMode()) {
             return;
@@ -70,6 +72,7 @@ public class MixinFontRenderer {
 
     @Inject(method = "renderStringAtPos", at = @At("HEAD"), cancellable = true)
     private void sfr$onRenderStringAtPos(String text, boolean shadow, CallbackInfo ci) {
+        FontRenderTuning.updateFromCurrentGlState();
         if (!sfr$shouldHook() || text == null) {
             return;
         }

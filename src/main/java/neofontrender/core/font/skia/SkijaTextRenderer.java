@@ -27,6 +27,9 @@ import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
 import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
+import neofontrender.core.font.FontPixelUtils;
+import neofontrender.core.font.FontRenderPipeline;
+import neofontrender.core.font.FontRenderTuning;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -87,7 +90,7 @@ public final class SkijaTextRenderer implements AutoCloseable {
         this.textureManager = textureManager;
         this.resourceManager = resourceManager;
         this.fontProvider = new TypefaceFontProvider();
-        this.oversample = Math.max(1.0F, Math.min(16.0F, NeofontrenderConfig.fontOversample()));
+        this.oversample = FontRenderTuning.rasterScale(NeofontrenderConfig.fontOversample());
         this.fontFamilies = registerConfiguredFonts();
         this.fontCollection = new FontCollection()
                 .setAssetFontManager(fontProvider)
@@ -244,21 +247,24 @@ public final class SkijaTextRenderer implements AutoCloseable {
                     pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
                 }
             }
+            if (NeofontrenderConfig.textureEdgeBleed()) {
+                FontPixelUtils.normalizeTransparentRgb(pixels, width, height);
+            }
 
             DynamicTexture texture = new DynamicTexture(width, height);
             int[] target = texture.getTextureData();
             System.arraycopy(pixels, 0, target, 0, Math.min(pixels.length, target.length));
             texture.updateDynamicTexture();
-            texture.setBlurMipmap(NeofontrenderConfig.renderingInterpolation(), NeofontrenderConfig.renderingMipmap());
+            FontRenderTuning.applyFontTextureFilter(texture, oversample);
 
             ResourceLocation location = new ResourceLocation("neofontrender",
                     "skia/" + Integer.toHexString(key.hashCode()) + "_" + nextTextureId++);
             textureManager.loadTexture(location, texture);
-            texture.setBlurMipmap(NeofontrenderConfig.renderingInterpolation(), NeofontrenderConfig.renderingMipmap());
+            FontRenderTuning.applyFontTextureFilter(texture, oversample);
             return new RenderedText(location, texture, measuredWidth,
                     width, height,
                     width / oversample, height / oversample,
-                    horizontalOffset, verticalOffset);
+                    oversample, horizontalOffset, verticalOffset);
         }
     }
 
@@ -472,7 +478,7 @@ public final class SkijaTextRenderer implements AutoCloseable {
     }
 
     public static final class RenderedText implements AutoCloseable {
-        private static final RenderedText EMPTY = new RenderedText(null, null, 0.0F, 0, 0, 0.0F, 0.0F, 0.0F, 0.0F);
+        private static final RenderedText EMPTY = new RenderedText(null, null, 0.0F, 0, 0, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F);
 
         private final ResourceLocation location;
         private final DynamicTexture texture;
@@ -481,12 +487,13 @@ public final class SkijaTextRenderer implements AutoCloseable {
         private final int height;
         private final float drawWidth;
         private final float drawHeight;
+        private final float rasterScale;
         private final float horizontalOffset;
         private final float verticalOffset;
 
         private RenderedText(ResourceLocation location, DynamicTexture texture, float advance,
                              int width, int height, float drawWidth, float drawHeight,
-                             float horizontalOffset, float verticalOffset) {
+                             float rasterScale, float horizontalOffset, float verticalOffset) {
             this.location = location;
             this.texture = texture;
             this.advance = advance;
@@ -494,6 +501,7 @@ public final class SkijaTextRenderer implements AutoCloseable {
             this.height = height;
             this.drawWidth = drawWidth;
             this.drawHeight = drawHeight;
+            this.rasterScale = rasterScale;
             this.horizontalOffset = horizontalOffset;
             this.verticalOffset = verticalOffset;
         }
@@ -510,17 +518,20 @@ public final class SkijaTextRenderer implements AutoCloseable {
             GlStateManager.enableTexture2D();
             GlStateManager.enableAlpha();
             GlStateManager.color(1.0F, 1.0F, 1.0F, alpha);
-            float left = x + horizontalOffset;
-            float top = y + verticalOffset;
+            FontRenderTuning.applyBoundTextureFilter(rasterScale);
+            float left = FontRenderTuning.alignToPixel(x + horizontalOffset);
+            float top = FontRenderTuning.alignToPixel(y + verticalOffset);
 
-            Tessellator tessellator = Tessellator.getInstance();
-            BufferBuilder buffer = tessellator.getBuffer();
-            buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
-            buffer.pos(left, top, 0.0D).tex(0.0D, 0.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-            buffer.pos(left, top + drawHeight, 0.0D).tex(0.0D, 1.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-            buffer.pos(left + drawWidth, top + drawHeight, 0.0D).tex(1.0D, 1.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-            buffer.pos(left + drawWidth, top, 0.0D).tex(1.0D, 0.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
-            tessellator.draw();
+            try (FontRenderPipeline.State ignored = FontRenderPipeline.begin(rasterScale)) {
+                Tessellator tessellator = Tessellator.getInstance();
+                BufferBuilder buffer = tessellator.getBuffer();
+                buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
+                buffer.pos(left, top, 0.0D).tex(0.0D, 0.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
+                buffer.pos(left, top + drawHeight, 0.0D).tex(0.0D, 1.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
+                buffer.pos(left + drawWidth, top + drawHeight, 0.0D).tex(1.0D, 1.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
+                buffer.pos(left + drawWidth, top, 0.0D).tex(1.0D, 0.0D).color(1.0F, 1.0F, 1.0F, alpha).endVertex();
+                tessellator.draw();
+            }
         }
 
         @Override

@@ -148,6 +148,26 @@ public final class NeofontrenderConfig {
         return config.getOrElse("rendering.mipmap", false);
     }
 
+    public static boolean adaptiveRasterScale() {
+        return config.getOrElse("rendering.adaptiveRasterScale", true);
+    }
+
+    public static boolean enhancedTextPipeline() {
+        return config.getOrElse("rendering.enhancedTextPipeline", false);
+    }
+
+    public static boolean shaderTextPipeline() {
+        return config.getOrElse("rendering.shaderTextPipeline", true);
+    }
+
+    public static float renderingBrightness() {
+        return getFloat("rendering.brightness", 3.0f);
+    }
+
+    public static boolean textureEdgeBleed() {
+        return config.getOrElse("rendering.textureEdgeBleed", true);
+    }
+
     // ===================== Performance =====================
     public static boolean performanceAsyncInit() {
         return config.getOrElse("performance.asyncInit", true);
@@ -244,6 +264,26 @@ public final class NeofontrenderConfig {
         config.set("rendering.mipmap", value);
     }
 
+    public static void setAdaptiveRasterScale(boolean value) {
+        config.set("rendering.adaptiveRasterScale", value);
+    }
+
+    public static void setEnhancedTextPipeline(boolean value) {
+        config.set("rendering.enhancedTextPipeline", value);
+    }
+
+    public static void setShaderTextPipeline(boolean value) {
+        config.set("rendering.shaderTextPipeline", value);
+    }
+
+    public static void setRenderingBrightness(float value) {
+        config.set("rendering.brightness", value);
+    }
+
+    public static void setTextureEdgeBleed(boolean value) {
+        config.set("rendering.textureEdgeBleed", value);
+    }
+
     public static void setRenderingEngine(String value) {
         config.set("rendering.engine", normalizeRenderingEngine(value));
     }
@@ -336,6 +376,11 @@ public final class NeofontrenderConfig {
             w.write("skiaAdvancedStringMode = true\n");
             w.write("interpolation = true\n");
             w.write("mipmap = false\n");
+            w.write("adaptiveRasterScale = true\n");
+            w.write("enhancedTextPipeline = false\n");
+            w.write("shaderTextPipeline = true\n");
+            w.write("brightness = 3.0\n");
+            w.write("textureEdgeBleed = true\n");
             w.write("\n");
             w.write("[performance]\n");
             w.write("asyncInit = true\n");
@@ -372,6 +417,11 @@ public final class NeofontrenderConfig {
         config.setComment("rendering.skiaAdvancedStringMode", "In Skia mode, render full formatted strings as one paragraph so shaping, ligatures, kerning, emoji ZWJ, and BiDi can work across the whole text. Disable to use legacy per-format-run rendering.");
         config.setComment("rendering.interpolation", "Use GL_LINEAR texture filtering instead of GL_NEAREST.");
         config.setComment("rendering.mipmap", "Enable mipmapping for font textures (may help at small sizes).");
+        config.setComment("rendering.adaptiveRasterScale", "Cap SFR/Skia rasterization scale to the current GUI pixel scale and use nearest filtering for 1:1/integer pixel output to avoid over-downsample blur.");
+        config.setComment("rendering.enhancedTextPipeline", "Use a dedicated text draw pipeline that forces straight-alpha blending and restores previous GL state after rendering. Keep this OFF for color emoji; it can alter emoji colors.");
+        config.setComment("rendering.shaderTextPipeline", "Use a tiny fixed-pipeline-compatible shader to compensate thin anti-aliased glyph edges. Automatically falls back if shader compilation fails.");
+        config.setComment("rendering.brightness", "Text edge compensation strength used by the enhanced shader pipeline. 0 disables extra alpha boost; 3 is close to SmoothFont-style defaults.");
+        config.setComment("rendering.textureEdgeBleed", "Fill fully-transparent Skia text pixels with neighboring RGB to prevent black fringes when linear filtering samples color outside glyph edges.");
         config.setComment("performance", "Performance tuning options.");
         config.setComment("performance.asyncInit", "Initialize font rasterization on a background thread.");
         config.setComment("performance.prewarmBasicLatin", "Pre-bake common Basic Latin and Latin-1 glyphs before enabling replacement rendering.");

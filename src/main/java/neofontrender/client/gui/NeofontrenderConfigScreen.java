@@ -9,6 +9,7 @@ import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.factory.ClientGUI;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
+import com.cleanroommc.modularui.screen.RichTooltip;
 import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.cleanroommc.modularui.utils.Alignment;
@@ -21,10 +22,12 @@ import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
+import net.minecraft.client.resources.I18n;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import neofontrender.core.config.NeofontrenderConfig;
 import neofontrender.core.font.FontManager;
+import neofontrender.core.font.FontRenderTuning;
 
 import java.awt.Desktop;
 import java.awt.GraphicsEnvironment;
@@ -57,16 +60,30 @@ public final class NeofontrenderConfigScreen {
     }
 
     public static void open() {
-        ClientGUI.open(new ModularScreen("neofontrender", buildPanel()).useTheme("neofontrender_modern").pausesGame(false));
+        openMain(new Staged());
     }
 
-    private static ModularPanel buildPanel() {
-        Staged staged = new Staged();
+    private static void openMain(Staged staged) {
+        ClientGUI.open(new ModularScreen("neofontrender", buildPanel(staged)).useTheme("neofontrender_modern").pausesGame(false));
+    }
 
+    private static void openAdvanced(Staged staged) {
+        ClientGUI.open(new ModularScreen("neofontrender_advanced", buildAdvancedPanel(staged)).useTheme("neofontrender_modern").pausesGame(false));
+    }
+
+    private static ModularPanel buildPanel(Staged staged) {
         ModularPanel panel = new ModularPanel("font_config")
                 .relativeToScreen()
                 .full();
         panel.child(new FontConfigLayout(staged).relativeToParent().full());
+        return panel;
+    }
+
+    private static ModularPanel buildAdvancedPanel(Staged staged) {
+        ModularPanel panel = new ModularPanel("font_config_advanced")
+                .relativeToScreen()
+                .full();
+        panel.child(new AdvancedConfigLayout(staged).relativeToParent().full());
         return panel;
     }
 
@@ -90,6 +107,29 @@ public final class NeofontrenderConfigScreen {
                 });
     }
 
+    private static ButtonWidget<?> actionButtonKey(String key, int width, int height, Runnable action) {
+        return actionButton(tr(key), width, height, action);
+    }
+
+    private static ButtonWidget<?> toggleButtonKey(String labelKey, String tooltipKey, int width, int height,
+                                                   Supplier<Boolean> getter, Consumer<Boolean> setter, Runnable preview) {
+        return withTooltip(new TextButton(() -> tr(labelKey) + ": " + onOff(getter.get()), true)
+                .onMousePressed(mouseButton -> {
+                    setter.accept(!getter.get());
+                    preview.run();
+                    return true;
+                }), tooltipKey);
+    }
+
+    private static <T extends ButtonWidget<?>> T withTooltip(T button, String tooltipKey) {
+        if (tooltipKey != null && !tooltipKey.isEmpty()) {
+            button.tooltip(new RichTooltip()
+                    .showUpTimer(8)
+                    .addLine(tr(tooltipKey)));
+        }
+        return button;
+    }
+
     private static ButtonWidget<?> sourceButton(Staged staged, FilteredFontList[] listRef) {
         return new TextButton(() -> sourceButtonName(staged.fontSource), true)
                 .onMousePressed(mouseButton -> {
@@ -104,24 +144,24 @@ public final class NeofontrenderConfigScreen {
     private static String sourceButtonName(int source) {
         switch (source) {
             case SOURCE_FOLDER:
-                return "Game";
+                return tr("neofontrender.gui.source.game");
             case SOURCE_BUILTIN:
-                return "Builtin";
+                return tr("neofontrender.gui.source.builtin");
             case SOURCE_SYSTEM:
             default:
-                return "System";
+                return tr("neofontrender.gui.source.system");
         }
     }
 
     private static String sourceTitle(int source) {
         switch (source) {
             case SOURCE_FOLDER:
-                return "Game font folder";
+                return tr("neofontrender.gui.source_title.game");
             case SOURCE_BUILTIN:
-                return "Built-in fonts";
+                return tr("neofontrender.gui.source_title.builtin");
             case SOURCE_SYSTEM:
             default:
-                return "System fonts";
+                return tr("neofontrender.gui.source_title.system");
         }
     }
 
@@ -135,32 +175,32 @@ public final class NeofontrenderConfigScreen {
     }
 
     private static ButtonWidget<?> styleButton(Staged staged, int width, int height) {
-        return new TextButton(() -> "Style: " + styleName(staged.fontStyle), true)
+        return withTooltip(new TextButton(() -> tr("neofontrender.gui.option.style") + ": " + styleName(staged.fontStyle), true)
                 .onMousePressed(mouseButton -> {
                     staged.fontStyle = (staged.fontStyle + 1) & 3;
                     preview(staged);
                     return true;
-                });
+                }), "neofontrender.tooltip.style");
     }
 
     private static ButtonWidget<?> aaModeButton(Staged staged, int width, int height) {
-        return new TextButton(() -> "AA: " + aaModeName(staged.antialiasMode), true)
+        return withTooltip(new TextButton(() -> tr("neofontrender.gui.option.antialias") + ": " + aaModeName(staged.antialiasMode), true)
                 .onMousePressed(mouseButton -> {
                     staged.antialiasMode = nextAaMode(staged.antialiasMode);
                     staged.antialias = !"off".equals(staged.antialiasMode);
                     preview(staged);
                     return true;
-                });
+                }), "neofontrender.tooltip.antialias");
     }
 
     private static ButtonWidget<?> engineButton(Staged staged, int width, int height) {
-        return new TextButton(() -> "Engine: " + engineName(staged.engine), true)
+        return withTooltip(new TextButton(() -> tr("neofontrender.gui.option.engine") + ": " + engineName(staged.engine), true)
                 .onMousePressed(mouseButton -> {
                     staged.engine = nextEngine(staged.engine);
                     staged.enabled = !"vanilla".equals(staged.engine);
                     preview(staged);
                     return true;
-                });
+                }), "neofontrender.tooltip.engine");
     }
 
     private static String nextEngine(String engine) {
@@ -177,12 +217,12 @@ public final class NeofontrenderConfigScreen {
     private static String engineName(String engine) {
         String normalized = normalizeEngine(engine);
         if ("skia".equals(normalized)) {
-            return "Skia";
+            return tr("neofontrender.gui.engine.skia");
         }
         if ("vanilla".equals(normalized)) {
-            return "Vanilla";
+            return tr("neofontrender.gui.engine.vanilla");
         }
-        return "SFR";
+        return tr("neofontrender.gui.engine.sfr");
     }
 
     private static String normalizeEngine(String engine) {
@@ -213,19 +253,19 @@ public final class NeofontrenderConfigScreen {
         String normalized = normalizeAaMode(mode);
         switch (normalized) {
             case "off":
-                return "Off";
+                return tr("neofontrender.gui.aa.off");
             case "gasp":
-                return "Gasp";
+                return tr("neofontrender.gui.aa.gasp");
             case "lcd_hrgb":
-                return "LCD HRGB";
+                return tr("neofontrender.gui.aa.lcd_hrgb");
             case "lcd_hbgr":
-                return "LCD HBGR";
+                return tr("neofontrender.gui.aa.lcd_hbgr");
             case "lcd_vrgb":
-                return "LCD VRGB";
+                return tr("neofontrender.gui.aa.lcd_vrgb");
             case "lcd_vbgr":
-                return "LCD VBGR";
+                return tr("neofontrender.gui.aa.lcd_vbgr");
             default:
-                return "On";
+                return tr("neofontrender.gui.aa.on");
         }
     }
 
@@ -245,13 +285,13 @@ public final class NeofontrenderConfigScreen {
     private static String styleName(int style) {
         switch (style & 3) {
             case 1:
-                return "Bold";
+                return tr("neofontrender.gui.style.bold");
             case 2:
-                return "Italic";
+                return tr("neofontrender.gui.style.italic");
             case 3:
-                return "BI";
+                return tr("neofontrender.gui.style.bold_italic");
             default:
-                return "Plain";
+                return tr("neofontrender.gui.style.plain");
         }
     }
 
@@ -350,10 +390,11 @@ public final class NeofontrenderConfigScreen {
         private static final int PAD = 12;
         private static final int GAP = 12;
 
-        private final TextWidget title = header("Neo Font Render");
+        private final TextWidget title = header(tr("neofontrender.gui.title"));
         private final FontSidebar sidebar;
         private final SettingsPane settings;
         private final ButtonWidget<?> previewButton;
+        private final ButtonWidget<?> advancedButton;
         private final ButtonWidget<?> applyButton;
         private final ButtonWidget<?> cancelButton;
 
@@ -364,12 +405,13 @@ public final class NeofontrenderConfigScreen {
 
             this.sidebar = new FontSidebar(staged, fontNameField, fontPathField, listRef);
             this.settings = new SettingsPane(staged, fontNameField, fontPathField);
-            this.previewButton = actionButton("Preview", 90, 20, () -> preview(staged));
-            this.applyButton = actionButton("Apply", 74, 20, () -> {
+            this.previewButton = actionButtonKey("neofontrender.gui.button.preview", 90, 20, () -> preview(staged));
+            this.advancedButton = actionButtonKey("neofontrender.gui.button.advanced", 90, 20, () -> openAdvanced(staged));
+            this.applyButton = actionButtonKey("neofontrender.gui.button.apply", 74, 20, () -> {
                 apply(staged);
                 ClientGUI.close();
             });
-            this.cancelButton = actionButton("Cancel", 74, 20, () -> {
+            this.cancelButton = actionButtonKey("neofontrender.gui.button.cancel", 74, 20, () -> {
                 staged.restoreOriginal();
                 reloadFontManager();
                 ClientGUI.close();
@@ -379,6 +421,7 @@ public final class NeofontrenderConfigScreen {
             child(sidebar);
             child(settings);
             child(previewButton);
+            child(advancedButton);
             child(applyButton);
             child(cancelButton);
         }
@@ -410,13 +453,79 @@ public final class NeofontrenderConfigScreen {
             int buttonWidth = Math.min(140, Math.max(90, (width - PAD * 2 - GAP * 3) / 4));
             int y = height - PAD - footerHeight;
             place(previewButton, PAD, y, buttonWidth, footerHeight);
+            place(advancedButton, PAD + buttonWidth + GAP, y, buttonWidth, footerHeight);
             place(cancelButton, width - PAD - buttonWidth, y, buttonWidth, footerHeight);
             place(applyButton, width - PAD - buttonWidth * 2 - GAP, y, buttonWidth, footerHeight);
         }
     }
 
+    private static final class AdvancedConfigLayout extends ParentWidget<AdvancedConfigLayout> implements ILayoutWidget {
+        private static final int PAD = 12;
+        private static final int GAP = 12;
+
+        private final TextWidget title = header(tr("neofontrender.gui.title.advanced"));
+        private final PipelineInfoWidget pipelineInfo;
+        private final AdvancedOptionsSection options;
+        private final BrightnessSection brightness;
+        private final ButtonWidget<?> backButton;
+        private final ButtonWidget<?> applyButton;
+        private final ButtonWidget<?> cancelButton;
+
+        private AdvancedConfigLayout(Staged staged) {
+            this.pipelineInfo = new PipelineInfoWidget(staged);
+            this.options = new AdvancedOptionsSection(staged);
+            this.brightness = new BrightnessSection(staged);
+            this.backButton = actionButtonKey("neofontrender.gui.button.back", 80, 20, () -> openMain(staged));
+            this.applyButton = actionButtonKey("neofontrender.gui.button.apply", 80, 20, () -> {
+                apply(staged);
+                ClientGUI.close();
+            });
+            this.cancelButton = actionButtonKey("neofontrender.gui.button.cancel", 80, 20, () -> {
+                staged.restoreOriginal();
+                reloadFontManager();
+                ClientGUI.close();
+            });
+
+            child(title);
+            child(pipelineInfo);
+            child(options);
+            child(brightness);
+            child(backButton);
+            child(applyButton);
+            child(cancelButton);
+        }
+
+        @Override
+        public void layoutWidgets() {
+            int width = getArea().w();
+            int height = getArea().h();
+            int footerHeight = 24;
+            int y = PAD;
+
+            place(title, PAD, y, Math.max(0, width - PAD * 2), 16);
+            y += 28;
+
+            int contentWidth = Math.max(0, width - PAD * 2);
+            int infoHeight = 136;
+            place(pipelineInfo, PAD, y, contentWidth, infoHeight);
+            y += infoHeight + GAP;
+
+            int optionsHeight = width < 520 ? 112 : 52;
+            place(options, PAD, y, contentWidth, optionsHeight);
+            y += optionsHeight + GAP;
+
+            place(brightness, PAD, y, contentWidth, 46);
+
+            int buttonWidth = Math.min(140, Math.max(90, (width - PAD * 2 - GAP * 3) / 4));
+            int footerY = height - PAD - footerHeight;
+            place(backButton, PAD, footerY, buttonWidth, footerHeight);
+            place(cancelButton, width - PAD - buttonWidth, footerY, buttonWidth, footerHeight);
+            place(applyButton, width - PAD - buttonWidth * 2 - GAP, footerY, buttonWidth, footerHeight);
+        }
+    }
+
     private static final class FontSidebar extends ParentWidget<FontSidebar> implements ILayoutWidget {
-        private final TextWidget searchLabel = label("Search fonts");
+        private final TextWidget searchLabel = label(tr("neofontrender.gui.label.search_fonts"));
         private final TextFieldWidget searchField;
         private final ButtonWidget<?> sourceButton;
         private final ButtonWidget<?> refreshButton;
@@ -434,12 +543,12 @@ public final class NeofontrenderConfigScreen {
                         }
                     }));
             this.sourceButton = sourceButton(staged, listRef);
-            this.refreshButton = actionButton("Refresh", 72, 18, () -> {
+            this.refreshButton = actionButtonKey("neofontrender.gui.button.refresh", 72, 18, () -> {
                 if (listRef[0] != null) {
                     listRef[0].reloadFonts();
                 }
             });
-            this.openFolderButton = actionButton("Open folder", 100, 18, NeofontrenderConfigScreen::openFontFolder);
+            this.openFolderButton = actionButtonKey("neofontrender.gui.button.open_folder", 100, 18, NeofontrenderConfigScreen::openFontFolder);
             this.sourceTitle = dynamicLabel(() -> sourceTitle(staged.fontSource));
             this.fontList = new FilteredFontList(staged, nameField, pathField);
             listRef[0] = this.fontList;
@@ -495,9 +604,9 @@ public final class NeofontrenderConfigScreen {
                     .setMaxLength(512)
                     .value(new StringValue(() -> staged.fontPath, v -> staged.fontPath = v));
 
-            this.fontName = new FieldBlock("Font name", fontNameField[0]);
-            this.fontPath = new FieldBlock("Local .ttf/.otf path", fontPathField[0]);
-            this.fallbacks = new FieldBlock("Fallbacks", new TextFieldWidget()
+            this.fontName = new FieldBlock(tr("neofontrender.gui.label.font_name"), fontNameField[0]);
+            this.fontPath = new FieldBlock(tr("neofontrender.gui.label.local_path"), fontPathField[0]);
+            this.fallbacks = new FieldBlock(tr("neofontrender.gui.label.fallbacks"), new TextFieldWidget()
                     .setMaxLength(512)
                     .value(new StringValue(() -> staged.fontFallbacks, v -> staged.fontFallbacks = v)));
             this.metrics = new MetricsSection(staged);
@@ -533,7 +642,7 @@ public final class NeofontrenderConfigScreen {
             y += metricsHeight + gap;
             place(oversample, 0, y, width, 46);
             y += 46 + gap;
-            int optionsHeight = width < 520 ? 112 : 82;
+            int optionsHeight = width < 520 ? 142 : 82;
             place(options, 0, y, width, optionsHeight);
             y += optionsHeight + gap;
             place(preview, 0, y, width, Math.max(0, height - y));
@@ -564,10 +673,10 @@ public final class NeofontrenderConfigScreen {
         private final FieldBlock baseline;
 
         private MetricsSection(Staged staged) {
-            this.size = new FieldBlock("Size", new TextFieldWidget()
+            this.size = new FieldBlock(tr("neofontrender.gui.label.size"), new TextFieldWidget()
                     .setMaxLength(8)
                     .value(new StringValue(() -> staged.fontSize, v -> staged.fontSize = v)));
-            this.baseline = new FieldBlock("Baseline", new TextFieldWidget()
+            this.baseline = new FieldBlock(tr("neofontrender.gui.label.baseline"), new TextFieldWidget()
                     .setMaxLength(8)
                     .value(new StringValue(() -> staged.baselineShift, v -> staged.baselineShift = v)));
             child(size);
@@ -595,7 +704,8 @@ public final class NeofontrenderConfigScreen {
         private final SliderWidget slider;
 
         private OversampleSection(Staged staged) {
-            this.label = dynamicLabel(() -> "Oversample: " + staged.oversample + "x");
+            this.label = dynamicLabel(() -> tr("neofontrender.gui.label.oversample") + ": " + staged.oversample + "x"
+                    + (staged.adaptiveRasterScale ? " (" + tr("neofontrender.gui.option.autoscale") + ")" : " (" + tr("neofontrender.gui.manual") + ")"));
             this.slider = new SliderWidget()
                     .value(new DoubleValue(
                             () -> (double) parseFloat(staged.oversample, 8.0F, 1.0F, 16.0F),
@@ -625,16 +735,18 @@ public final class NeofontrenderConfigScreen {
         private final ButtonWidget<?> fractional;
         private final ButtonWidget<?> style;
         private final ButtonWidget<?> builtins;
+        private final ButtonWidget<?> autoScale;
 
         private OptionsSection(Staged staged) {
-            this.enabled = toggleButton("Enabled", 80, 20, () -> staged.enabled, v -> staged.enabled = v, () -> preview(staged));
+            this.enabled = toggleButtonKey("neofontrender.gui.option.enabled", "neofontrender.tooltip.enabled", 80, 20, () -> staged.enabled, v -> staged.enabled = v, () -> preview(staged));
             this.engine = engineButton(staged, 96, 20);
-            this.skiaString = toggleButton("String", 80, 20, () -> staged.skiaAdvancedStringMode, v -> staged.skiaAdvancedStringMode = v, () -> preview(staged));
-            this.autoBase = toggleButton("AutoBase", 80, 20, () -> staged.autoBaseline, v -> staged.autoBaseline = v, () -> preview(staged));
+            this.skiaString = toggleButtonKey("neofontrender.gui.option.string_mode", "neofontrender.tooltip.string_mode", 80, 20, () -> staged.skiaAdvancedStringMode, v -> staged.skiaAdvancedStringMode = v, () -> preview(staged));
+            this.autoBase = toggleButtonKey("neofontrender.gui.option.autobase", "neofontrender.tooltip.autobase", 80, 20, () -> staged.autoBaseline, v -> staged.autoBaseline = v, () -> preview(staged));
             this.aa = aaModeButton(staged, 140, 20);
-            this.fractional = toggleButton("Fractional", 80, 20, () -> staged.fractionalMetrics, v -> staged.fractionalMetrics = v, () -> preview(staged));
+            this.fractional = toggleButtonKey("neofontrender.gui.option.fractional", "neofontrender.tooltip.fractional", 80, 20, () -> staged.fractionalMetrics, v -> staged.fractionalMetrics = v, () -> preview(staged));
             this.style = styleButton(staged, 80, 20);
-            this.builtins = toggleButton("Builtins", 80, 20, () -> staged.builtinFallbacks, v -> staged.builtinFallbacks = v, () -> preview(staged));
+            this.builtins = toggleButtonKey("neofontrender.gui.option.builtins", "neofontrender.tooltip.builtins", 80, 20, () -> staged.builtinFallbacks, v -> staged.builtinFallbacks = v, () -> preview(staged));
+            this.autoScale = toggleButtonKey("neofontrender.gui.option.autoscale", "neofontrender.tooltip.autoscale", 80, 20, () -> staged.adaptiveRasterScale, v -> staged.adaptiveRasterScale = v, () -> preview(staged));
             child(enabled);
             child(engine);
             child(skiaString);
@@ -643,6 +755,7 @@ public final class NeofontrenderConfigScreen {
             child(fractional);
             child(style);
             child(builtins);
+            child(autoScale);
         }
 
         @Override
@@ -652,7 +765,7 @@ public final class NeofontrenderConfigScreen {
             if (width < 520) {
                 int buttonHeight = 22;
                 int buttonWidth = Math.max(0, (width - gap) / 2);
-                IWidget[] buttons = {engine, skiaString, enabled, autoBase, aa, fractional, style, builtins};
+                IWidget[] buttons = {engine, skiaString, enabled, autoBase, aa, fractional, style, builtins, autoScale};
                 for (int i = 0; i < buttons.length; i++) {
                     int col = i & 1;
                     int row = i / 2;
@@ -663,13 +776,127 @@ public final class NeofontrenderConfigScreen {
             }
             int buttonHeight = 22;
             int third = Math.max(0, (width - gap * 2) / 3);
-            IWidget[] buttons = {engine, skiaString, enabled, autoBase, aa, fractional, style, builtins};
+            IWidget[] buttons = {engine, skiaString, enabled, autoBase, aa, fractional, style, builtins, autoScale};
             for (int i = 0; i < buttons.length; i++) {
                 int col = i % 3;
                 int row = i / 3;
                 int x = col * (third + gap);
                 place(buttons[i], x, row * (buttonHeight + gap), col == 2 ? Math.max(0, width - x) : third, buttonHeight);
             }
+        }
+    }
+
+    private static final class AdvancedOptionsSection extends ParentWidget<AdvancedOptionsSection> implements ILayoutWidget {
+        private final ButtonWidget<?> autoScale;
+        private final ButtonWidget<?> interpolation;
+        private final ButtonWidget<?> mipmap;
+        private final ButtonWidget<?> pipeline;
+        private final ButtonWidget<?> shader;
+        private final ButtonWidget<?> edgeBleed;
+
+        private AdvancedOptionsSection(Staged staged) {
+            this.autoScale = toggleButtonKey("neofontrender.gui.option.autoscale", "neofontrender.tooltip.autoscale", 80, 20, () -> staged.adaptiveRasterScale, v -> staged.adaptiveRasterScale = v, () -> preview(staged));
+            this.interpolation = toggleButtonKey("neofontrender.gui.option.linear", "neofontrender.tooltip.linear", 80, 20, () -> staged.interpolation, v -> staged.interpolation = v, () -> preview(staged));
+            this.mipmap = toggleButtonKey("neofontrender.gui.option.mipmap", "neofontrender.tooltip.mipmap", 80, 20, () -> staged.mipmap, v -> staged.mipmap = v, () -> preview(staged));
+            this.pipeline = toggleButtonKey("neofontrender.gui.option.pipeline", "neofontrender.tooltip.pipeline", 80, 20, () -> staged.enhancedTextPipeline, v -> staged.enhancedTextPipeline = v, () -> preview(staged));
+            this.shader = toggleButtonKey("neofontrender.gui.option.shader", "neofontrender.tooltip.shader", 80, 20, () -> staged.shaderTextPipeline, v -> staged.shaderTextPipeline = v, () -> preview(staged));
+            this.edgeBleed = toggleButtonKey("neofontrender.gui.option.edge_bleed", "neofontrender.tooltip.edge_bleed", 80, 20, () -> staged.textureEdgeBleed, v -> staged.textureEdgeBleed = v, () -> preview(staged));
+            child(autoScale);
+            child(interpolation);
+            child(mipmap);
+            child(pipeline);
+            child(shader);
+            child(edgeBleed);
+        }
+
+        @Override
+        public void layoutWidgets() {
+            int width = getArea().w();
+            int gap = 8;
+            int buttonHeight = 22;
+            if (width < 520) {
+                int buttonWidth = Math.max(0, (width - gap) / 2);
+                IWidget[] buttons = {autoScale, interpolation, mipmap, pipeline, shader, edgeBleed};
+                for (int i = 0; i < buttons.length; i++) {
+                    int col = i & 1;
+                    int row = i / 2;
+                    int x = col == 0 ? 0 : buttonWidth + gap;
+                    place(buttons[i], x, row * (buttonHeight + gap), col == 0 ? buttonWidth : width - x, buttonHeight);
+                }
+                return;
+            }
+            int third = Math.max(0, (width - gap * 2) / 3);
+            IWidget[] buttons = {autoScale, interpolation, mipmap, pipeline, shader, edgeBleed};
+            for (int i = 0; i < buttons.length; i++) {
+                int col = i % 3;
+                int row = i / 3;
+                int x = col * (third + gap);
+                place(buttons[i], x, row * (buttonHeight + gap), col == 2 ? Math.max(0, width - x) : third, buttonHeight);
+            }
+        }
+    }
+
+    private static final class BrightnessSection extends ParentWidget<BrightnessSection> implements ILayoutWidget {
+        private final TextWidget label;
+        private final SliderWidget slider;
+
+        private BrightnessSection(Staged staged) {
+            this.label = dynamicLabel(() -> tr("neofontrender.gui.label.brightness") + ": " + staged.brightness);
+            this.slider = new SliderWidget()
+                    .value(new DoubleValue(
+                            () -> (double) parseFloat(staged.brightness, 3.0F, 0.0F, 12.0F),
+                            v -> {
+                                staged.brightness = String.format(Locale.ROOT, "%.1f", Math.max(0.0D, Math.min(12.0D, v)));
+                                preview(staged);
+                            }))
+                    .bounds(0.0D, 12.0D)
+                    .stopper(0.0D, 1.0D, 2.0D, 3.0D, 4.0D, 6.0D, 8.0D, 12.0D);
+            child(label);
+            child(slider);
+        }
+
+        @Override
+        public void layoutWidgets() {
+            place(label, 0, 0, getArea().w(), 12);
+            place(slider, 0, 18, getArea().w(), Math.max(20, getArea().h() - 18));
+        }
+    }
+
+    private static final class PipelineInfoWidget extends Widget<PipelineInfoWidget> {
+        private final Staged staged;
+
+        private PipelineInfoWidget(Staged staged) {
+            this.staged = staged;
+        }
+
+        @Override
+        public void draw(ModularGuiContext context, WidgetTheme widgetTheme) {
+            super.draw(context, widgetTheme);
+            FontRenderTuning.updateFromCurrentGlState();
+            float configured = parseFloat(staged.oversample, 8.0F, 1.0F, 16.0F);
+            float effective = FontRenderTuning.rasterScale(configured);
+            float guiScale = FontRenderTuning.currentGuiScale();
+            String filtering = FontRenderTuning.useLinearFiltering(effective)
+                    ? tr("neofontrender.gui.filter.linear")
+                    : tr("neofontrender.gui.filter.nearest");
+            int x = getArea().x() + 8;
+            int y = getArea().y() + 8;
+            Gui.drawRect(getArea().x() + 4, getArea().y() + 4, getArea().ex() - 4, getArea().ey() - 4, 0x66000000);
+            Minecraft mc = Minecraft.getMinecraft();
+            int line = Math.max(18, mc.fontRenderer.FONT_HEIGHT + 6);
+            mc.fontRenderer.drawString(tr("neofontrender.gui.option.engine") + ": " + engineName(staged.engine), x, y, 0xFFFFFF);
+            mc.fontRenderer.drawString(String.format(Locale.ROOT, "%s: %.1fx  %s: %.2fx",
+                    tr("neofontrender.gui.label.oversample"), configured,
+                    tr("neofontrender.gui.label.effective"), effective), x, y + line, 0xD8D8D8);
+            mc.fontRenderer.drawString(String.format(Locale.ROOT, "%s: %.2fx  %s: %s",
+                    tr("neofontrender.gui.label.gui_scale"), guiScale,
+                    tr("neofontrender.gui.label.filter"), filtering), x, y + line * 2, 0xD8D8D8);
+            mc.fontRenderer.drawString(tr("neofontrender.gui.option.pipeline") + ": " + onOff(staged.enhancedTextPipeline)
+                    + "  " + tr("neofontrender.gui.option.shader") + ": " + onOff(staged.shaderTextPipeline)
+                    + "  " + tr("neofontrender.gui.option.edge_bleed") + ": " + onOff(staged.textureEdgeBleed), x, y + line * 3, 0xD8D8D8);
+            mc.fontRenderer.drawString(tr("neofontrender.gui.option.autoscale") + ": " + onOff(staged.adaptiveRasterScale)
+                    + "  " + tr("neofontrender.gui.option.linear") + ": " + onOff(staged.interpolation)
+                    + "  " + tr("neofontrender.gui.option.mipmap") + ": " + onOff(staged.mipmap), x, y + line * 4, 0xD8D8D8);
         }
     }
 
@@ -688,10 +915,24 @@ public final class NeofontrenderConfigScreen {
         private final boolean originalBuiltinFallbacks = NeofontrenderConfig.builtinFallbacksEnabled();
         private final String originalEngine = NeofontrenderConfig.renderingEngine();
         private final boolean originalSkiaAdvancedStringMode = NeofontrenderConfig.skiaAdvancedStringMode();
+        private final boolean originalAdaptiveRasterScale = NeofontrenderConfig.adaptiveRasterScale();
+        private final boolean originalInterpolation = NeofontrenderConfig.renderingInterpolation();
+        private final boolean originalMipmap = NeofontrenderConfig.renderingMipmap();
+        private final boolean originalEnhancedTextPipeline = NeofontrenderConfig.enhancedTextPipeline();
+        private final boolean originalShaderTextPipeline = NeofontrenderConfig.shaderTextPipeline();
+        private final String originalBrightness = Float.toString(NeofontrenderConfig.renderingBrightness());
+        private final boolean originalTextureEdgeBleed = NeofontrenderConfig.textureEdgeBleed();
 
         private boolean enabled = originalEnabled;
         private String engine = originalEngine;
         private boolean skiaAdvancedStringMode = originalSkiaAdvancedStringMode;
+        private boolean adaptiveRasterScale = originalAdaptiveRasterScale;
+        private boolean interpolation = originalInterpolation;
+        private boolean mipmap = originalMipmap;
+        private boolean enhancedTextPipeline = originalEnhancedTextPipeline;
+        private boolean shaderTextPipeline = originalShaderTextPipeline;
+        private String brightness = originalBrightness;
+        private boolean textureEdgeBleed = originalTextureEdgeBleed;
         private String fontName = originalFontName;
         private String fontPath = originalFontName.endsWith(".ttf") || originalFontName.endsWith(".otf") ? originalFontName : "";
         private String fontFallbacks = originalFontFallbacks;
@@ -728,6 +969,13 @@ public final class NeofontrenderConfigScreen {
             NeofontrenderConfig.setEnabled(enabled);
             NeofontrenderConfig.setRenderingEngine(engine);
             NeofontrenderConfig.setSkiaAdvancedStringMode(skiaAdvancedStringMode);
+            NeofontrenderConfig.setAdaptiveRasterScale(adaptiveRasterScale);
+            NeofontrenderConfig.setRenderingInterpolation(interpolation);
+            NeofontrenderConfig.setRenderingMipmap(mipmap);
+            NeofontrenderConfig.setEnhancedTextPipeline(enhancedTextPipeline);
+            NeofontrenderConfig.setShaderTextPipeline(shaderTextPipeline);
+            NeofontrenderConfig.setRenderingBrightness(parseFloat(brightness, 3.0F, 0.0F, 12.0F));
+            NeofontrenderConfig.setTextureEdgeBleed(textureEdgeBleed);
             NeofontrenderConfig.setFontName(selectedFont().isEmpty() ? "SansSerif" : selectedFont());
             NeofontrenderConfig.setFontFallbacks(parseFonts(fontFallbacks));
             NeofontrenderConfig.setFontStyle(fontStyle);
@@ -748,6 +996,13 @@ public final class NeofontrenderConfigScreen {
             NeofontrenderConfig.setEnabled(originalEnabled);
             NeofontrenderConfig.setRenderingEngine(originalEngine);
             NeofontrenderConfig.setSkiaAdvancedStringMode(originalSkiaAdvancedStringMode);
+            NeofontrenderConfig.setAdaptiveRasterScale(originalAdaptiveRasterScale);
+            NeofontrenderConfig.setRenderingInterpolation(originalInterpolation);
+            NeofontrenderConfig.setRenderingMipmap(originalMipmap);
+            NeofontrenderConfig.setEnhancedTextPipeline(originalEnhancedTextPipeline);
+            NeofontrenderConfig.setShaderTextPipeline(originalShaderTextPipeline);
+            NeofontrenderConfig.setRenderingBrightness(parseFloat(originalBrightness, 3.0F, 0.0F, 12.0F));
+            NeofontrenderConfig.setTextureEdgeBleed(originalTextureEdgeBleed);
             NeofontrenderConfig.setFontName(originalFontName);
             NeofontrenderConfig.setFontFallbacks(parseFonts(originalFontFallbacks));
             NeofontrenderConfig.setFontStyle(originalFontStyle);
@@ -789,6 +1044,14 @@ public final class NeofontrenderConfigScreen {
 
     private static String joinFonts(List<String> fonts) {
         return fonts == null || fonts.isEmpty() ? "" : String.join(", ", fonts);
+    }
+
+    private static String onOff(boolean value) {
+        return value ? tr("neofontrender.gui.on") : tr("neofontrender.gui.off");
+    }
+
+    private static String tr(String key, Object... args) {
+        return I18n.format(key, args);
     }
 
     private static final class FontEntry {
@@ -987,9 +1250,9 @@ public final class NeofontrenderConfigScreen {
             int y = getArea().y() + 8;
             Gui.drawRect(getArea().x() + 4, getArea().y() + 4, getArea().ex() - 4, getArea().ey() - 4, 0x66000000);
             Minecraft mc = Minecraft.getMinecraft();
-            mc.fontRenderer.drawString("Preview: " + staged.selectedFont(), x, y, 0xFFFFFF);
-            mc.fontRenderer.drawString("The quick brown fox 12345", x, y + 14, 0xD8D8D8);
-            mc.fontRenderer.drawString("\u00a7lBold \u00a7oItalic \u00a7nUnderline \u00a7rNormal", x, y + 28, 0xFFFFFF);
+            mc.fontRenderer.drawString(tr("neofontrender.gui.preview.font", staged.selectedFont()), x, y, 0xFFFFFF);
+            mc.fontRenderer.drawString(tr("neofontrender.gui.preview.sample"), x, y + 14, 0xD8D8D8);
+            mc.fontRenderer.drawString(tr("neofontrender.gui.preview.styles"), x, y + 28, 0xFFFFFF);
         }
     }
 }
