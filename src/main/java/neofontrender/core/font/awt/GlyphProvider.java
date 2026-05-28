@@ -1,4 +1,4 @@
-package neofontrender.core.font;
+package neofontrender.core.font.awt;
 
 import javax.annotation.Nullable;
 import java.util.Collection;

@@ -7,8 +7,14 @@ import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
 import neofontrender.core.config.NeofontrenderConfig;
-import neofontrender.core.font.providers.AwtTtfGlyphProvider;
-import neofontrender.core.font.providers.MissingGlyphProvider;
+import neofontrender.core.font.awt.FontSet;
+import neofontrender.core.font.awt.FontTexture;
+import neofontrender.core.font.awt.GlyphProvider;
+import neofontrender.core.font.awt.providers.AwtTtfGlyphProvider;
+import neofontrender.core.font.awt.providers.MissingGlyphProvider;
+import neofontrender.core.font.backend.TextRenderBackend;
+import neofontrender.core.font.support.FontRenderTuning;
+import neofontrender.core.font.skia.SkijaRuntimeSupport;
 import neofontrender.core.font.skia.SkijaTextRenderer;
 
 import java.util.ArrayList;
@@ -26,7 +32,7 @@ public class FontManager implements AutoCloseable {
 
     private TextureManager textureManager;
     private FontSet defaultFontSet;
-    private SkijaTextRenderer skijaTextRenderer;
+    private TextRenderBackend textRenderBackend;
     private boolean active = false;
     private boolean skiaActive = false;
 
@@ -54,22 +60,30 @@ public class FontManager implements AutoCloseable {
             return;
         }
 
-        if (NeofontrenderConfig.useSkiaEngine()) {
-            try {
-                this.skijaTextRenderer = new SkijaTextRenderer(textureManager, resourceManager);
-                if (NeofontrenderConfig.performancePrewarmBasicLatin()) {
-                    this.skijaTextRenderer.prewarmBasicLatin();
+        boolean preferSkia = NeofontrenderConfig.useSkiaEngine();
+        if (preferSkia) {
+            SkijaRuntimeSupport.Compatibility compatibility = SkijaRuntimeSupport.checkCompatibility();
+            if (!compatibility.isSupported()) {
+                neofontrender.NeoFontRender.LOGGER.warn("Skija renderer disabled: {}. Falling back to AWT font renderer", compatibility.getMessage());
+            } else {
+                try {
+                    this.textRenderBackend = new SkijaTextRenderer(textureManager, resourceManager);
+                    if (NeofontrenderConfig.performancePrewarmBasicLatin()) {
+                        this.textRenderBackend.prewarmBasicLatin();
+                    }
+                    this.skiaActive = this.textRenderBackend.isReady();
+                    this.active = false;
+                    neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with Skija renderer ({})", compatibility.getMessage());
+                    return;
+                } catch (Throwable t) {
+                    this.textRenderBackend = null;
+                    this.skiaActive = false;
+                    neofontrender.NeoFontRender.LOGGER.error(
+                            "Failed to initialize Skija renderer ({}); falling back to AWT font renderer",
+                            compatibility.getMessage(),
+                            t);
                 }
-                this.skiaActive = this.skijaTextRenderer.isReady();
-                this.active = false;
-                neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with Skija renderer");
-            } catch (Throwable t) {
-                this.skijaTextRenderer = null;
-                this.skiaActive = false;
-                this.active = false;
-                neofontrender.NeoFontRender.LOGGER.error("Failed to initialize Skija renderer; keeping vanilla rendering", t);
             }
-            return;
         }
 
         List<GlyphProvider> providers = new ArrayList<>();
@@ -121,7 +135,11 @@ public class FontManager implements AutoCloseable {
         }
         this.active = true;
         this.skiaActive = false;
-        neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with {} providers", providers.size());
+        if (preferSkia) {
+            neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with {} AWT providers after Skija fallback", providers.size());
+        } else {
+            neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with {} providers", providers.size());
+        }
     }
 
     private AwtTtfGlyphProvider loadAwtFont(IResourceManager resourceManager, String fontName,
@@ -169,15 +187,19 @@ public class FontManager implements AutoCloseable {
     }
 
     public synchronized boolean isSkiaActive() {
-        return skiaActive && skijaTextRenderer != null;
+        return skiaActive && textRenderBackend != null;
     }
 
     public synchronized FontSet getDefaultFontSet() {
         return defaultFontSet;
     }
 
+    public synchronized TextRenderBackend getTextRenderBackend() {
+        return textRenderBackend;
+    }
+
     public synchronized SkijaTextRenderer getSkijaTextRenderer() {
-        return skijaTextRenderer;
+        return textRenderBackend instanceof SkijaTextRenderer ? (SkijaTextRenderer) textRenderBackend : null;
     }
 
     @Override
@@ -186,9 +208,9 @@ public class FontManager implements AutoCloseable {
             defaultFontSet.close();
             defaultFontSet = null;
         }
-        if (skijaTextRenderer != null) {
-            skijaTextRenderer.close();
-            skijaTextRenderer = null;
+        if (textRenderBackend != null) {
+            textRenderBackend.close();
+            textRenderBackend = null;
         }
         active = false;
         skiaActive = false;

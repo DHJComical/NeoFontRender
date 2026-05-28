@@ -12,13 +12,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import neofontrender.core.font.BakedGlyph;
-import neofontrender.core.font.FontSet;
 import neofontrender.core.font.FontManager;
-import neofontrender.core.font.FontRenderTuning;
-import neofontrender.core.font.GlyphInfo;
-import neofontrender.core.font.skia.SkijaTextRenderer;
+import neofontrender.core.font.awt.BakedGlyph;
+import neofontrender.core.font.awt.FontSet;
+import neofontrender.core.font.awt.GlyphInfo;
+import neofontrender.core.font.backend.TextRenderBackend;
+import neofontrender.core.font.backend.TextRenderResult;
 import neofontrender.core.config.NeofontrenderConfig;
+import neofontrender.core.font.support.FontRenderTuning;
 
 import java.util.Locale;
 
@@ -57,13 +58,15 @@ public class MixinFontRenderer {
         }
 
         GlStateManager.enableAlpha();
+        TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+        if (backend == null) {
+            return;
+        }
         if (dropShadow) {
-            SkijaTextRenderer.RenderedText shadow = FontManager.INSTANCE.getSkijaTextRenderer()
-                    .renderFormatted(text, color, true);
+            TextRenderResult shadow = backend.renderFormatted(text, color, true);
             shadow.draw(x + 1.0F, y + 1.0F, shadowAlpha(color));
         }
-        SkijaTextRenderer.RenderedText rendered = FontManager.INSTANCE.getSkijaTextRenderer()
-                .renderFormatted(text, color, false);
+        TextRenderResult rendered = backend.renderFormatted(text, color, false);
         rendered.draw(x, y, alphaFromColor(color));
         this.posX = x + rendered.advance();
         this.posY = y;
@@ -161,17 +164,20 @@ public class MixinFontRenderer {
             return;
         }
         if (FontManager.INSTANCE.isSkiaActive()) {
+            TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+            if (backend == null) {
+                return;
+            }
             if (Character.isHighSurrogate(ch) || Character.isLowSurrogate(ch)) {
                 cir.setReturnValue(0.0F);
                 return;
             }
             if (ch == ' ' || ch == 160) {
-                cir.setReturnValue(FontManager.INSTANCE.getSkijaTextRenderer().measure(" ", this.boldStyle, italic));
+                cir.setReturnValue(backend.measure(" ", this.boldStyle, italic));
                 return;
             }
             String text = String.valueOf(ch);
-            SkijaTextRenderer.RenderedText rendered = FontManager.INSTANCE.getSkijaTextRenderer()
-                    .render(text, sfr$currentArgb(), this.boldStyle, italic);
+            TextRenderResult rendered = backend.render(text, sfr$currentArgb(), this.boldStyle, italic);
             rendered.draw(this.posX, this.posY, this.alpha);
             cir.setReturnValue(rendered.advance());
             return;
@@ -329,8 +335,11 @@ public class MixinFontRenderer {
             return;
         }
         float startX = this.posX;
-        SkijaTextRenderer.RenderedText rendered = FontManager.INSTANCE.getSkijaTextRenderer()
-                .render(run, sfr$currentArgb(), this.boldStyle, this.italicStyle);
+        TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+        if (backend == null) {
+            return;
+        }
+        TextRenderResult rendered = backend.render(run, sfr$currentArgb(), this.boldStyle, this.italicStyle);
         rendered.draw(startX, this.posY, this.alpha);
         float width = rendered.advance();
 
@@ -523,7 +532,8 @@ public class MixinFontRenderer {
 
     private float sfr$getFormattedStringWidthFloat(String text) {
         if (FontManager.INSTANCE.isSkiaActive() && NeofontrenderConfig.skiaAdvancedStringMode()) {
-            return FontManager.INSTANCE.getSkijaTextRenderer().measureFormatted(text, 0xFFFFFFFF, false);
+            TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+            return backend == null ? 0.0F : backend.measureFormatted(text, 0xFFFFFFFF, false);
         }
         float width = 0.0F;
         boolean bold = false;
@@ -555,10 +565,14 @@ public class MixinFontRenderer {
             return 0.0F;
         }
         if (FontManager.INSTANCE.isSkiaActive()) {
-            if (NeofontrenderConfig.skiaAdvancedStringMode()) {
-                return FontManager.INSTANCE.getSkijaTextRenderer().measureFormatted(run, 0xFFFFFFFF, false);
+            TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+            if (backend == null) {
+                return 0.0F;
             }
-            return FontManager.INSTANCE.getSkijaTextRenderer().measure(run, bold, false);
+            if (NeofontrenderConfig.skiaAdvancedStringMode()) {
+                return backend.measureFormatted(run, 0xFFFFFFFF, false);
+            }
+            return backend.measure(run, bold, false);
         }
         float[] positions = FontManager.INSTANCE.getDefaultFontSet().layoutPositions(run, bold);
         return positions[positions.length - 1];
@@ -572,8 +586,9 @@ public class MixinFontRenderer {
             return 0.0F;
         }
         if (FontManager.INSTANCE.isSkiaActive()) {
-            return FontManager.INSTANCE.getSkijaTextRenderer()
-                    .measure(new String(Character.toChars(codePoint == 160 ? ' ' : codePoint)), bold, false);
+            TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+            return backend == null ? 0.0F
+                    : backend.measure(new String(Character.toChars(codePoint == 160 ? ' ' : codePoint)), bold, false);
         }
         GlyphInfo info = FontManager.INSTANCE.getDefaultFontSet().getGlyphInfo(codePoint == 160 ? ' ' : codePoint);
         return info == null ? 0.0F : info.getAdvance(bold);

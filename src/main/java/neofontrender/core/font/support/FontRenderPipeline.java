@@ -1,4 +1,4 @@
-package neofontrender.core.font;
+package neofontrender.core.font.support;
 
 import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;

@@ -1,9 +1,15 @@
-package neofontrender.core.font;
+package neofontrender.core.font.awt;
 
-import neofontrender.core.font.providers.AwtTtfGlyphProvider;
+import neofontrender.core.font.awt.providers.AwtTtfGlyphProvider;
 
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 
 /**
  * A collection of {@link GlyphProvider}s that together form a single font.
@@ -36,9 +42,6 @@ public class FontSet implements AutoCloseable {
         }
         this.layoutProvider = awtProvider;
 
-        // Build width buckets for obfuscated-text support.
-        // We scan all supported glyphs and record their advance so that
-        // getRandomGlyph can pick a visually-similar replacement.
         Set<Integer> seen = new HashSet<>();
         for (GlyphProvider provider : providers) {
             for (int cp : provider.getSupportedGlyphs()) {
@@ -83,9 +86,6 @@ public class FontSet implements AutoCloseable {
         glyphsByWidth.computeIfAbsent(w, k -> new ArrayList<>()).add(codePoint);
     }
 
-    /**
-     * Return the {@link GlyphInfo} for a code point, querying providers in order.
-     */
     public GlyphInfo getGlyphInfo(int codePoint) {
         return glyphInfos.computeIfAbsent(codePoint, this::findGlyphInfo);
     }
@@ -97,13 +97,9 @@ public class FontSet implements AutoCloseable {
                 return info;
             }
         }
-        // Should not happen if MissingGlyphProvider is always last
         return null;
     }
 
-    /**
-     * Return the baked glyph for a code point, rasterizing on first use.
-     */
     @Nullable
     public BakedGlyph getGlyph(int codePoint) {
         return bakedGlyphs.computeIfAbsent(codePoint, this::bakeGlyph);
@@ -134,10 +130,6 @@ public class FontSet implements AutoCloseable {
         return info.bake(atlas);
     }
 
-    /**
-     * Return a random glyph whose advance is close to the given width,
-     * used by obfuscated text rendering ({@code §k}).
-     */
     @Nullable
     public BakedGlyph getRandomGlyph(float advance) {
         int w = (int) Math.ceil(advance);

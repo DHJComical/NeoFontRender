@@ -27,9 +27,11 @@ import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
 import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
-import neofontrender.core.font.FontPixelUtils;
-import neofontrender.core.font.FontRenderPipeline;
-import neofontrender.core.font.FontRenderTuning;
+import neofontrender.core.font.backend.TextRenderBackend;
+import neofontrender.core.font.backend.TextRenderResult;
+import neofontrender.core.font.support.FontPixelUtils;
+import neofontrender.core.font.support.FontRenderPipeline;
+import neofontrender.core.font.support.FontRenderTuning;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -48,7 +50,7 @@ import java.util.Map;
  * cached Minecraft dynamic textures. A glyph atlas can replace this later
  * without changing the FontRenderer mixin dispatch surface.
  */
-public final class SkijaTextRenderer implements AutoCloseable {
+public final class SkijaTextRenderer implements TextRenderBackend {
 
     private static final int MAX_CACHE_SIZE = 512;
     private static final String[] PLATFORM_EMOJI_FONTS = {
@@ -110,42 +112,49 @@ public final class SkijaTextRenderer implements AutoCloseable {
         if (text == null || text.isEmpty()) {
             return 0.0F;
         }
-        MeasureKey key = new MeasureKey(text, bold, italic);
+        MeasureKey key = MeasureKey.plain(text, bold, italic);
         Float cached = measureCache.get(key);
         if (cached != null) {
             return cached;
         }
-        float width;
+        float measured;
         try (Paragraph paragraph = buildParagraph(text, 0xFFFFFFFF, bold, italic, oversample)) {
             paragraph.layout(100000.0F * oversample);
-            width = Math.max(paragraph.getMaxIntrinsicWidth(), paragraph.getLongestLine()) / oversample;
+            measured = Math.max(paragraph.getMaxIntrinsicWidth(), paragraph.getLongestLine()) / oversample;
         }
-        measureCache.put(key, width);
-        return width;
+        measureCache.put(key, measured);
+        return measured;
     }
 
     public float measureFormatted(String text, int baseArgb, boolean shadow) {
         if (text == null || text.isEmpty()) {
             return 0.0F;
         }
+        MeasureKey key = MeasureKey.formatted(text, shadow);
+        Float cached = measureCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        float measured;
         try (Paragraph paragraph = buildFormattedParagraph(text, baseArgb, shadow, oversample)) {
             paragraph.layout(100000.0F * oversample);
-            return Math.max(paragraph.getMaxIntrinsicWidth(), paragraph.getLongestLine()) / oversample;
+            measured = Math.max(paragraph.getMaxIntrinsicWidth(), paragraph.getLongestLine()) / oversample;
         }
+        measureCache.put(key, measured);
+        return measured;
     }
 
     public RenderedText render(String text, int argb, boolean bold, boolean italic) {
         if (text == null || text.isEmpty()) {
             return RenderedText.EMPTY;
         }
-        RenderKey key = new RenderKey(text, argb, bold, italic);
+        RenderKey key = RenderKey.plain(text, argb, bold, italic);
         RenderedText cached = renderCache.get(key);
         if (cached != null) {
             return cached;
         }
-
         try {
-            RenderedText rendered = rasterize(key);
+            RenderedText rendered = rasterize(text, argb, bold, italic, key.hashCode());
             renderCache.put(key, rendered);
             return rendered;
         } catch (Throwable t) {
@@ -158,14 +167,14 @@ public final class SkijaTextRenderer implements AutoCloseable {
         if (text == null || text.isEmpty()) {
             return RenderedText.EMPTY;
         }
-        RenderKey key = new RenderKey(text, normalizeBaseArgb(baseArgb), shadow, true);
+        int normalizedArgb = normalizeBaseArgb(baseArgb);
+        RenderKey key = RenderKey.formatted(text, normalizedArgb, shadow);
         RenderedText cached = renderCache.get(key);
         if (cached != null) {
             return cached;
         }
-
         try {
-            RenderedText rendered = rasterizeFormatted(key);
+            RenderedText rendered = rasterizeFormatted(text, normalizedArgb, shadow, key.hashCode());
             renderCache.put(key, rendered);
             return rendered;
         } catch (Throwable t) {
@@ -191,25 +200,25 @@ public final class SkijaTextRenderer implements AutoCloseable {
         }
     }
 
-    private RenderedText rasterize(RenderKey key) throws IOException {
-        float measuredWidth = Math.max(1.0F, measure(key.text, key.bold, key.italic));
+    private RenderedText rasterize(String text, int argb, boolean bold, boolean italic, int cacheHash) throws IOException {
+        float measuredWidth = Math.max(1.0F, measure(text, bold, italic));
         int width = Math.max(1, (int) Math.ceil((measuredWidth + 4.0F) * oversample));
-        try (Paragraph paragraph = buildParagraph(key.text, key.argb, key.bold, key.italic, oversample)) {
+        try (Paragraph paragraph = buildParagraph(text, argb, bold, italic, oversample)) {
             paragraph.layout(width);
-            return rasterizeParagraph(paragraph, key, measuredWidth, width);
+            return rasterizeParagraph(paragraph, cacheHash, measuredWidth, width);
         }
     }
 
-    private RenderedText rasterizeFormatted(RenderKey key) throws IOException {
-        float measuredWidth = Math.max(1.0F, measureFormatted(key.text, key.argb, key.bold));
+    private RenderedText rasterizeFormatted(String text, int argb, boolean shadow, int cacheHash) throws IOException {
+        float measuredWidth = Math.max(1.0F, measureFormatted(text, argb, shadow));
         int width = Math.max(1, (int) Math.ceil((measuredWidth + 4.0F) * oversample));
-        try (Paragraph paragraph = buildFormattedParagraph(key.text, key.argb, key.bold, oversample)) {
+        try (Paragraph paragraph = buildFormattedParagraph(text, argb, shadow, oversample)) {
             paragraph.layout(width);
-            return rasterizeParagraph(paragraph, key, measuredWidth, width);
+            return rasterizeParagraph(paragraph, cacheHash, measuredWidth, width);
         }
     }
 
-    private RenderedText rasterizeParagraph(Paragraph paragraph, RenderKey key, float measuredWidth, int width) throws IOException {
+    private RenderedText rasterizeParagraph(Paragraph paragraph, int cacheHash, float measuredWidth, int width) throws IOException {
         int height;
         float verticalOffset;
 
@@ -258,7 +267,7 @@ public final class SkijaTextRenderer implements AutoCloseable {
             FontRenderTuning.applyFontTextureFilter(texture, oversample);
 
             ResourceLocation location = new ResourceLocation("neofontrender",
-                    "skia/" + Integer.toHexString(key.hashCode()) + "_" + nextTextureId++);
+            "skia/" + Integer.toHexString(cacheHash) + "_" + nextTextureId++);
             textureManager.loadTexture(location, texture);
             FontRenderTuning.applyFontTextureFilter(texture, oversample);
             return new RenderedText(location, texture, measuredWidth,
@@ -477,7 +486,7 @@ public final class SkijaTextRenderer implements AutoCloseable {
         fontProvider.close();
     }
 
-    public static final class RenderedText implements AutoCloseable {
+    public static final class RenderedText implements TextRenderResult, AutoCloseable {
         private static final RenderedText EMPTY = new RenderedText(null, null, 0.0F, 0, 0, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F);
 
         private final ResourceLocation location;
@@ -545,14 +554,24 @@ public final class SkijaTextRenderer implements AutoCloseable {
     private static final class RenderKey {
         private final String text;
         private final int argb;
-        private final boolean bold;
-        private final boolean italic;
+        private final boolean formatted;
+        private final boolean primaryStyle;
+        private final boolean secondaryStyle;
 
-        private RenderKey(String text, int argb, boolean bold, boolean italic) {
+        private RenderKey(String text, int argb, boolean formatted, boolean primaryStyle, boolean secondaryStyle) {
             this.text = text;
             this.argb = argb;
-            this.bold = bold;
-            this.italic = italic;
+            this.formatted = formatted;
+            this.primaryStyle = primaryStyle;
+            this.secondaryStyle = secondaryStyle;
+        }
+
+        private static RenderKey plain(String text, int argb, boolean bold, boolean italic) {
+            return new RenderKey(text, argb, false, bold, italic);
+        }
+
+        private static RenderKey formatted(String text, int argb, boolean shadow) {
+            return new RenderKey(text, argb, true, shadow, false);
         }
 
         @Override
@@ -564,28 +583,43 @@ public final class SkijaTextRenderer implements AutoCloseable {
                 return false;
             }
             RenderKey other = (RenderKey) obj;
-            return argb == other.argb && bold == other.bold && italic == other.italic && text.equals(other.text);
+            return argb == other.argb
+                    && formatted == other.formatted
+                    && primaryStyle == other.primaryStyle
+                    && secondaryStyle == other.secondaryStyle
+                    && text.equals(other.text);
         }
 
         @Override
         public int hashCode() {
             int result = text.hashCode();
             result = 31 * result + argb;
-            result = 31 * result + (bold ? 1 : 0);
-            result = 31 * result + (italic ? 1 : 0);
+            result = 31 * result + (formatted ? 1 : 0);
+            result = 31 * result + (primaryStyle ? 1 : 0);
+            result = 31 * result + (secondaryStyle ? 1 : 0);
             return result;
         }
     }
 
     private static final class MeasureKey {
         private final String text;
-        private final boolean bold;
-        private final boolean italic;
+        private final boolean formatted;
+        private final boolean primaryStyle;
+        private final boolean secondaryStyle;
 
-        private MeasureKey(String text, boolean bold, boolean italic) {
+        private MeasureKey(String text, boolean formatted, boolean primaryStyle, boolean secondaryStyle) {
             this.text = text;
-            this.bold = bold;
-            this.italic = italic;
+            this.formatted = formatted;
+            this.primaryStyle = primaryStyle;
+            this.secondaryStyle = secondaryStyle;
+        }
+
+        private static MeasureKey plain(String text, boolean bold, boolean italic) {
+            return new MeasureKey(text, false, bold, italic);
+        }
+
+        private static MeasureKey formatted(String text, boolean shadow) {
+            return new MeasureKey(text, true, shadow, false);
         }
 
         @Override
@@ -597,15 +631,20 @@ public final class SkijaTextRenderer implements AutoCloseable {
                 return false;
             }
             MeasureKey other = (MeasureKey) obj;
-            return bold == other.bold && italic == other.italic && text.equals(other.text);
+            return formatted == other.formatted
+                    && primaryStyle == other.primaryStyle
+                    && secondaryStyle == other.secondaryStyle
+                    && text.equals(other.text);
         }
 
         @Override
         public int hashCode() {
             int result = text.hashCode();
-            result = 31 * result + (bold ? 1 : 0);
-            result = 31 * result + (italic ? 1 : 0);
+            result = 31 * result + (formatted ? 1 : 0);
+            result = 31 * result + (primaryStyle ? 1 : 0);
+            result = 31 * result + (secondaryStyle ? 1 : 0);
             return result;
         }
     }
+
 }

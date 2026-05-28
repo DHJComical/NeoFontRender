@@ -15,7 +15,8 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import neofontrender.core.font.FontManager;
-import neofontrender.core.font.skia.SkijaTextRenderer;
+import neofontrender.core.font.backend.TextRenderBackend;
+import neofontrender.core.font.backend.TextRenderResult;
 
 /**
  * Visual emoji rendering test screen.
@@ -78,7 +79,7 @@ public final class NeofontrenderEmojiTestScreen {
             Gui.drawRect(areaX, areaY, areaX + areaW, areaY + areaH, 0xCC111111);
 
             boolean skiaActive = FontManager.INSTANCE.isSkiaActive();
-            SkijaTextRenderer renderer = skiaActive ? FontManager.INSTANCE.getSkijaTextRenderer() : null;
+            TextRenderBackend backend = skiaActive ? FontManager.INSTANCE.getTextRenderBackend() : null;
 
             int y = areaY + 8;
             Minecraft.getMinecraft().fontRenderer.drawString(
@@ -137,10 +138,10 @@ public final class NeofontrenderEmojiTestScreen {
                 y += 12;
             }
 
-            if (skiaActive && renderer != null && userText != null && !userText.isEmpty()) {
+            if (skiaActive && backend != null && userText != null && !userText.isEmpty()) {
                 Minecraft.getMinecraft().fontRenderer.drawString("Skia result:", areaX + 8, y, 0x88AAFF);
                 y += 12;
-                SkijaTextRenderer.RenderedText rendered = renderer.render(userText, 0xFFFFFFFF, false, false);
+                TextRenderResult rendered = backend.render(userText, 0xFFFFFFFF, false, false);
                 if (rendered.advance() > 0) {
                     GlStateManager.enableTexture2D();
                     GlStateManager.enableAlpha();
@@ -159,7 +160,7 @@ public final class NeofontrenderEmojiTestScreen {
             Minecraft.getMinecraft().fontRenderer.drawString("Preset tests:", areaX + 8, y, 0xA9B5C5);
             y += 12;
 
-            if (!skiaActive || renderer == null) {
+                if (!skiaActive || backend == null) {
                 Minecraft.getMinecraft().fontRenderer.drawString(
                         "Skia engine not active.", areaX + 8, y, 0xFF6666);
                 return;
@@ -169,7 +170,7 @@ public final class NeofontrenderEmojiTestScreen {
                 String test = TEST_STRINGS[i];
                 if (y + 18 > areaY + areaH) break;
 
-                SkijaTextRenderer.RenderedText rendered = renderer.render(test, 0xFFFFFFFF, false, false);
+                TextRenderResult rendered = backend.render(test, 0xFFFFFFFF, false, false);
                 float advance = rendered.advance();
 
                 Minecraft.getMinecraft().fontRenderer.drawString("[" + i + "]", areaX + 8, y + 2, 0x888888);

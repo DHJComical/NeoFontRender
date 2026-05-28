@@ -1,12 +1,11 @@
-package neofontrender.core.font.providers;
+package neofontrender.core.font.awt.providers;
 
-import neofontrender.core.font.BakedGlyph;
-import neofontrender.core.font.FontPixelUtils;
-import neofontrender.core.font.FontTexture;
-import neofontrender.core.font.GlyphInfo;
-import neofontrender.core.font.GlyphProvider;
+import neofontrender.core.font.awt.BakedGlyph;
+import neofontrender.core.font.awt.FontTexture;
+import neofontrender.core.font.awt.GlyphInfo;
+import neofontrender.core.font.awt.GlyphProvider;
+import neofontrender.core.font.support.FontPixelUtils;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -26,8 +25,6 @@ public class MissingGlyphProvider implements GlyphProvider {
 
     @Override
     public Collection<Integer> getSupportedGlyphs() {
-        // Claim everything; since this provider is always last,
-        // it acts as a catch-all fallback.
         return Collections.emptyList();
     }
 
@@ -40,7 +37,6 @@ public class MissingGlyphProvider implements GlyphProvider {
         @Override
         public BakedGlyph bake(FontTexture atlas) {
             int[] pixels = new int[BOX_WIDTH * BOX_HEIGHT];
-            // Draw a hollow box: border white, interior transparent
             for (int y = 0; y < BOX_HEIGHT; y++) {
                 for (int x = 0; x < BOX_WIDTH; x++) {
                     boolean border = x == 0 || x == BOX_WIDTH - 1 || y == 0 || y == BOX_HEIGHT - 1;

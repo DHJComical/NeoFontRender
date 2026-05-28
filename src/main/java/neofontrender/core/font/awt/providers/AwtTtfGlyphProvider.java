@@ -1,16 +1,19 @@
-package neofontrender.core.font.providers;
+package neofontrender.core.font.awt.providers;
 
 import net.minecraft.client.resources.IResource;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
-import neofontrender.core.font.BakedGlyph;
-import neofontrender.core.font.FontPixelUtils;
-import neofontrender.core.font.FontTexture;
-import neofontrender.core.font.GlyphInfo;
-import neofontrender.core.font.GlyphProvider;
+import neofontrender.core.font.awt.BakedGlyph;
+import neofontrender.core.font.awt.FontTexture;
+import neofontrender.core.font.awt.GlyphInfo;
+import neofontrender.core.font.awt.GlyphProvider;
+import neofontrender.core.font.support.FontPixelUtils;
 
 import javax.annotation.Nullable;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphMetrics;
 import java.awt.font.GlyphVector;
@@ -73,22 +76,6 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
         this.fractionalMetrics = fractionalMetrics;
     }
 
-    /**
-     * Load a TTF font from the given resource location.
-     *
-     * @param manager     resource manager
-     * @param fontName    font name (system name like "SansSerif") or {@code null} to use system default
-     * @param size        target pixel height on screen
-     * @param oversample  rasterisation scale factor (higher = smoother)
-     * @param shiftX      horizontal sub-pixel shift
-     * @param shiftY      vertical sub-pixel shift
-     * @param baselineShift manual baseline shift in Minecraft pixels
-     * @param autoBaseline align measured AWT baseline to the Minecraft reference baseline
-     * @param referenceBaseline target Minecraft-space baseline for auto alignment
-     * @param antialias   enable AWT anti-aliasing
-     * @param fractionalMetrics enable fractional font metrics
-     * @param style       AWT font style (Font.PLAIN, BOLD, ITALIC, etc.)
-     */
     @Nullable
     public static AwtTtfGlyphProvider load(IResourceManager manager,
                                            @Nullable String fontName,
@@ -168,9 +155,6 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
                 autoBaseline, referenceBaseline, antialias, antialiasMode, fractionalMetrics);
     }
 
-    /**
-     * Legacy overload for backwards compatibility.
-     */
     @Nullable
     public static AwtTtfGlyphProvider load(IResourceManager manager,
                                            @Nullable ResourceLocation location,
@@ -191,10 +175,6 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
 
     @Override
     public Collection<Integer> getSupportedGlyphs() {
-        // AWT Font.canDisplay covers the full Unicode range the font supports,
-        // but enumerating it is expensive. Return empty so FontSet does not
-        // pre-build width buckets for this provider; obfuscated text will
-        // fall back to a smaller random set.
         return Collections.emptyList();
     }
 
@@ -306,10 +286,6 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
         }
     }
 
-    // ===================================================================== //
-    //  Inner: AwtGlyphInfo
-    // ===================================================================== //
-
     private class AwtGlyphInfo implements GlyphInfo {
 
         private final int codePoint;
@@ -420,7 +396,6 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
                 return RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_VRGB;
             case "lcd_vbgr":
                 return RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_VBGR;
-            case "on":
             default:
                 return RenderingHints.VALUE_TEXT_ANTIALIAS_ON;
         }

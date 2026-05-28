@@ -1,4 +1,4 @@
-package neofontrender.core.font;
+package neofontrender.core.font.support;
 
 /**
  * Pixel cleanup for straight-alpha font textures.

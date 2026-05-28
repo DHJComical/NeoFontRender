@@ -1,10 +1,11 @@
-package neofontrender.core.font;
+package neofontrender.core.font.awt;
 
 import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.ResourceLocation;
+import neofontrender.core.font.support.FontRenderPipeline;
+import neofontrender.core.font.support.FontRenderTuning;
 
 /**
  * A glyph that has been uploaded to a texture atlas and can be rendered with a single quad.

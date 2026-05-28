@@ -1,8 +1,10 @@
-package neofontrender.core.font;
+package neofontrender.core.font.awt;
 
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.util.ResourceLocation;
+import neofontrender.core.font.support.FontPixelUtils;
+import neofontrender.core.font.support.FontRenderTuning;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -53,7 +55,6 @@ public class FontTexture implements AutoCloseable {
             return null;
         }
 
-        // Try existing pages
         for (Page page : pages) {
             BakedGlyph glyph = page.add(pixels, pw, ph, left, right, up, down, oversample);
             if (glyph != null) {
@@ -61,7 +62,6 @@ public class FontTexture implements AutoCloseable {
             }
         }
 
-        // Create a new page
         ResourceLocation pageLoc = new ResourceLocation(
                 baseLocation.getNamespace(),
                 baseLocation.getPath() + "/" + pages.size());
@@ -77,10 +77,6 @@ public class FontTexture implements AutoCloseable {
         }
         pages.clear();
     }
-
-    // ====================================================================== //
-    //  Inner: Page
-    // ====================================================================== //
 
     private static class Page implements AutoCloseable {
         final DynamicTexture texture;
@@ -98,7 +94,6 @@ public class FontTexture implements AutoCloseable {
             this.height = height;
             this.rasterScale = rasterScale;
             FontRenderTuning.applyFontTextureFilter(this.texture, rasterScale);
-            // Clear to transparent white so linear filtering does not pick up a dark fringe.
             int[] data = this.texture.getTextureData();
             for (int i = 0; i < data.length; i++) {
                 data[i] = FontPixelUtils.TRANSPARENT_WHITE;
@@ -117,17 +112,15 @@ public class FontTexture implements AutoCloseable {
             int needH = ph + PADDING;
 
             if (needW > width || needH > height) {
-                return null; // too large for a single page
+                return null;
             }
 
-            // Try to fit into an existing shelf
             for (Shelf shelf : shelves) {
                 if (shelf.height >= needH && shelf.usedWidth + needW <= width) {
                     return place(shelf, pixels, pw, ph, left, right, up, down, oversample);
                 }
             }
 
-            // Create a new shelf
             if (usedHeight + needH <= height) {
                 Shelf shelf = new Shelf(0, usedHeight, needH);
                 shelves.add(shelf);
@@ -135,7 +128,7 @@ public class FontTexture implements AutoCloseable {
                 return place(shelf, pixels, pw, ph, left, right, up, down, oversample);
             }
 
-            return null; // page full
+            return null;
         }
 
         private BakedGlyph place(Shelf shelf, int[] pixels, int pw, int ph,
@@ -145,7 +138,6 @@ public class FontTexture implements AutoCloseable {
             int y = shelf.y;
             shelf.usedWidth += pw + PADDING;
 
-            // Copy pixels into dynamic texture buffer
             int[] dest = this.texture.getTextureData();
             for (int row = 0; row < ph; row++) {
                 int destRow = y + row;
@@ -159,7 +151,6 @@ public class FontTexture implements AutoCloseable {
             float u1 = (float) (x + pw) / (float) width;
             float v1 = (float) (y + ph) / (float) height;
 
-            // Bearings are already in screen pixels; do not scale again.
             return new BakedGlyph(
                     this.location,
                     u0, u1, v0, v1,
@@ -173,10 +164,6 @@ public class FontTexture implements AutoCloseable {
             this.texture.deleteGlTexture();
         }
     }
-
-    // ====================================================================== //
-    //  Inner: Shelf
-    // ====================================================================== //
 
     private static class Shelf {
         final int x;

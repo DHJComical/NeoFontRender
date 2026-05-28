@@ -1,4 +1,4 @@
-package neofontrender.core.font;
+package neofontrender.core.font.support;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
@@ -52,7 +52,6 @@ public final class FontRenderTuning {
                 currentGuiPixelScale = clamp(scale, 0.25F, 64.0F);
             }
         } catch (RuntimeException | LinkageError ignored) {
-            // Keep the last known scale; fallback is handled by currentGuiScale().
         }
     }
 
@@ -110,7 +109,6 @@ public final class FontRenderTuning {
                 return Math.max(1, new ScaledResolution(mc).getScaleFactor());
             }
         } catch (RuntimeException ignored) {
-            // Fall through to a conservative scale.
         }
         return 1.0F;
     }

@@ -27,7 +27,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import neofontrender.core.config.NeofontrenderConfig;
 import neofontrender.core.font.FontManager;
-import neofontrender.core.font.FontRenderTuning;
+import neofontrender.core.font.support.FontRenderTuning;
 
 import java.awt.Desktop;
 import java.awt.GraphicsEnvironment;

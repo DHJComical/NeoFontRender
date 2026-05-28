@@ -12,7 +12,8 @@ import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
 import neofontrender.client.gui.NeofontrenderEmojiTestScreen;
 import neofontrender.core.font.FontManager;
-import neofontrender.core.font.skia.SkijaTextRenderer;
+import neofontrender.core.font.backend.TextRenderBackend;
+import neofontrender.core.font.backend.TextRenderResult;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -76,13 +77,13 @@ public class NeofontrenderCommand extends CommandBase {
             return;
         }
 
-        SkijaTextRenderer renderer = FontManager.INSTANCE.getSkijaTextRenderer();
-        if (renderer == null) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "SkijaTextRenderer is null"));
+        TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+        if (backend == null) {
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Text render backend unavailable"));
             return;
         }
 
-        String[] families = renderer.getFontFamilies();
+        String[] families = backend.getFontFamilies();
         if (families == null) {
             sender.sendMessage(new TextComponentString(TextFormatting.RED + "fontFamilies is null"));
             return;
@@ -153,9 +154,9 @@ public class NeofontrenderCommand extends CommandBase {
             sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "Skia engine not active."));
             return;
         }
-        SkijaTextRenderer renderer = FontManager.INSTANCE.getSkijaTextRenderer();
-        if (renderer == null) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "SkijaTextRenderer is null"));
+        TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
+        if (backend == null) {
+            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Text render backend unavailable"));
             return;
         }
 
@@ -169,8 +170,8 @@ public class NeofontrenderCommand extends CommandBase {
 
         sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== Emoji Render Test ==="));
         for (String test : testCases) {
-            float width = renderer.measure(test, false, false);
-            SkijaTextRenderer.RenderedText rendered = renderer.render(test, 0xFFFFFFFF, false, false);
+            float width = backend.measure(test, false, false);
+            TextRenderResult rendered = backend.render(test, 0xFFFFFFFF, false, false);
             boolean success = rendered.advance() > 0;
             sender.sendMessage(new TextComponentString(
                     TextFormatting.WHITE + "  \"" + test + "\""
