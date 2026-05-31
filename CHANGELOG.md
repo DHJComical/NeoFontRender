@@ -2,6 +2,18 @@
 
 All notable changes to Neo Font Render will be documented in this file.
 
+## [0.2.4] - 2026-06-01
+
+### Added
+- Added `/neofontrender export` diagnostic command with multi-scenario PNG export and report.txt (GL state, filter decision analysis).
+- Added `rendering.forceBlendForText` config option (default: true). MC disables GL_BLEND in some paths (e.g. renderItemOverlayIntoGUI) because the vanilla bitmap font uses 1-bit alpha. Skia and AWT anti-aliased textures have multi-bit alpha edges that need blend for correct compositing. Detailed config comment explains the mismatch.
+- Added `PipelineStageTest` offline diagnostic tool for tracing pixel pipeline stages.
+- Added `getFontCollection()` accessor on SkijaTextRenderer.
+
+### Fixed
+- Fixed GL_NEAREST fallback in `useLinearFiltering()`: removed overly aggressive ratio-based exclusion conditions [5][6] that triggered at screenScale=3, rasterScale=6 (1/ratio=2.0 integer), causing jagged text in normal GUI rendering. Matches SmoothFont behavior.
+- Fixed missing GL_BLEND in inventory item counts and other MC code paths that disable blend before drawStringWithShadow. Both SkijaTextRenderer.draw() and BakedGlyph.render() now force blend on when `forceBlendForText=true`.
+
 ## [0.2.3] - 2026-05-29
 
 ### Added
