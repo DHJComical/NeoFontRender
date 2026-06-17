@@ -1,6 +1,7 @@
 key.neofontrender.openConfig=Open Neo Font Render Config
 key.categories.neofontrender=Neo Font Render
 
+neofontrender.options.button=Neo Font Render
 neofontrender.gui.title=Neo Font Render
 neofontrender.gui.title.advanced=Neo Font Render / Advanced
 neofontrender.gui.button.preview=Preview

@@ -11,6 +11,7 @@
 		"MixinFontRenderer",
 		"MixinGuiOverlayDebug",
 		"MixinGuiEditSign",
+		"MixinGuiOptions",
 		"MixinGuiScreen",
 		"MixinMinecraft",
 		"MixinTextureManager"
