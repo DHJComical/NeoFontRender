@@ -133,6 +133,7 @@ public final class NeofontrenderConfigScreen {
     private static ButtonWidget<?> toggleButtonKey(String labelKey, String tooltipKey, int width, int height,
                                                    Supplier<Boolean> getter, Consumer<Boolean> setter, Runnable preview) {
         return withTooltip(new TextButton(() -> tr(labelKey) + ": " + onOff(getter.get()), true)
+                .size(width, height)
                 .onMousePressed(mouseButton -> {
                     setter.accept(!getter.get());
                     preview.run();
@@ -416,7 +417,6 @@ public final class NeofontrenderConfigScreen {
         private final TextWidget title = header(tr("neofontrender.gui.title"));
         private final FontSidebar sidebar;
         private final SettingsPane settings;
-        private final ScrollWidget settingsScroll;
         private final ButtonWidget<?> previewButton;
         private final ButtonWidget<?> advancedButton;
         private final ButtonWidget<?> applyButton;
@@ -429,8 +429,6 @@ public final class NeofontrenderConfigScreen {
 
             this.sidebar = new FontSidebar(staged, fontNameField, fontPathField, listRef);
             this.settings = new SettingsPane(staged, fontNameField, fontPathField);
-            this.settingsScroll = new ScrollWidget();
-            this.settingsScroll.child(settings);
             this.previewButton = actionButtonKey("neofontrender.gui.button.preview", 90, 20, () -> preview(staged));
             this.advancedButton = actionButtonKey("neofontrender.gui.button.advanced", 90, 20, () -> openAdvanced(staged));
             this.applyButton = actionButtonKey("neofontrender.gui.button.apply", 74, 20, () -> {
@@ -445,7 +443,7 @@ public final class NeofontrenderConfigScreen {
 
             child(title);
             child(sidebar);
-            child(settingsScroll);
+            child(settings);
             child(previewButton);
             child(advancedButton);
             child(applyButton);
@@ -464,17 +462,10 @@ public final class NeofontrenderConfigScreen {
 
             place(title, PAD, PAD, Math.max(0, width - PAD * 2), titleHeight);
 
-            if (width < 760) {
-                int sidebarHeight = clamp(contentHeight * 42 / 100, 170, Math.max(170, contentHeight - 220));
-                int settingsTop = contentTop + sidebarHeight + GAP;
-                place(sidebar, PAD, contentTop, Math.max(0, width - PAD * 2), sidebarHeight);
-                place(settingsScroll, PAD, settingsTop, Math.max(0, width - PAD * 2), Math.max(80, contentBottom - settingsTop));
-            } else {
-                int sidebarWidth = clamp(width / 3, 300, 420);
-                int settingsX = PAD + sidebarWidth + GAP;
-                place(sidebar, PAD, contentTop, sidebarWidth, contentHeight);
-                place(settingsScroll, settingsX, contentTop, Math.max(0, width - settingsX - PAD), contentHeight);
-            }
+            int sidebarWidth = clamp(width / 3, 200, 420);
+            int settingsX = PAD + sidebarWidth + GAP;
+            place(sidebar, PAD, contentTop, sidebarWidth, contentHeight);
+            place(settings, settingsX, contentTop, Math.max(0, width - settingsX - PAD), contentHeight);
 
             int buttonWidth = Math.min(140, Math.max(90, (width - PAD * 2 - GAP * 3) / 4));
             int y = height - PAD - footerHeight;
@@ -492,8 +483,7 @@ public final class NeofontrenderConfigScreen {
 
         private final TextWidget title = header(tr("neofontrender.gui.title.advanced"));
         private final PipelineInfoWidget pipelineInfo;
-        private final AdvancedOptionsSection options;
-        private final ScrollWidget optionsScroll;
+        private final Flow optionsFlow;
         private final BrightnessSection brightness;
         private final ButtonWidget<?> backButton;
         private final ButtonWidget<?> applyButton;
@@ -501,9 +491,7 @@ public final class NeofontrenderConfigScreen {
 
         private AdvancedConfigLayout(Staged staged) {
             this.pipelineInfo = new PipelineInfoWidget(staged);
-            this.options = new AdvancedOptionsSection(staged);
-            this.optionsScroll = new ScrollWidget();
-            this.optionsScroll.child(options);
+            this.optionsFlow = buildAdvancedOptionsFlow(staged);
             this.brightness = new BrightnessSection(staged);
             this.backButton = actionButtonKey("neofontrender.gui.button.back", 80, 20, () -> openMain(staged));
             this.applyButton = actionButtonKey("neofontrender.gui.button.apply", 80, 20, () -> {
@@ -518,7 +506,7 @@ public final class NeofontrenderConfigScreen {
 
             child(title);
             child(pipelineInfo);
-            child(optionsScroll);
+            child(optionsFlow);
             child(brightness);
             child(backButton);
             child(applyButton);
@@ -536,12 +524,19 @@ public final class NeofontrenderConfigScreen {
             y += 28;
 
             int contentWidth = Math.max(0, width - PAD * 2);
-            int infoHeight = 136;
-            place(pipelineInfo, PAD, y, contentWidth, infoHeight);
+            place(pipelineInfo, PAD, y, contentWidth, 0);
+            int infoHeight = pipelineInfo.getArea().h();
             y += infoHeight + GAP;
 
-            int optionsHeight = width < 520 ? 172 : 112;
-            place(optionsScroll, PAD, y, contentWidth, optionsHeight);
+            for (IWidget child : optionsFlow.getChildren()) {
+                child.resizer().resize(false);
+            }
+            optionsFlow.getArea().setSize(GuiAxis.X, contentWidth);
+            optionsFlow.layoutWidgets();
+            optionsFlow.postLayoutWidgets();
+            optionsFlow.resizer().postResize();
+            int optionsHeight = optionsFlow.getArea().h();
+            place(optionsFlow, PAD, y, contentWidth, optionsHeight);
             y += optionsHeight + GAP;
 
             place(brightness, PAD, y, contentWidth, 46);
@@ -625,7 +620,7 @@ public final class NeofontrenderConfigScreen {
         private final FieldBlock fallbacks;
         private final MetricsSection metrics;
         private final OversampleSection oversample;
-        private final OptionsSection options;
+        private final Flow optionsFlow;
         private final PreviewWidget preview;
 
         private SettingsPane(Staged staged, TextFieldWidget[] fontNameField, TextFieldWidget[] fontPathField) {
@@ -643,7 +638,7 @@ public final class NeofontrenderConfigScreen {
                     .value(new StringValue(() -> staged.fontFallbacks, v -> staged.fontFallbacks = v)));
             this.metrics = new MetricsSection(staged);
             this.oversample = new OversampleSection(staged);
-            this.options = new OptionsSection(staged);
+            this.optionsFlow = buildOptionsFlow(staged);
             this.preview = new PreviewWidget(staged);
 
             child(fontName);
@@ -651,7 +646,7 @@ public final class NeofontrenderConfigScreen {
             child(fallbacks);
             child(metrics);
             child(oversample);
-            child(options);
+            child(optionsFlow);
             child(preview);
         }
 
@@ -669,14 +664,22 @@ public final class NeofontrenderConfigScreen {
             y += fieldHeight + gap;
             place(fallbacks, 0, y, width, fieldHeight);
             y += fieldHeight + gap;
-            int metricsHeight = width < 360 ? 84 : fieldHeight;
-            place(metrics, 0, y, width, metricsHeight);
-            y += metricsHeight + gap;
+            place(metrics, 0, y, width, fieldHeight);
+            y += fieldHeight + gap;
             place(oversample, 0, y, width, 46);
             y += 46 + gap;
-            int optionsHeight = width < 520 ? 142 : 82;
-            place(options, 0, y, width, optionsHeight);
+
+            for (IWidget child : optionsFlow.getChildren()) {
+                child.resizer().resize(false);
+            }
+            optionsFlow.getArea().setSize(GuiAxis.X, width);
+            optionsFlow.layoutWidgets();
+            optionsFlow.postLayoutWidgets();
+            optionsFlow.resizer().postResize();
+            int optionsHeight = optionsFlow.getArea().h();
+            place(optionsFlow, 0, y, width, optionsHeight);
             y += optionsHeight + gap;
+
             place(preview, 0, y, width, Math.max(0, height - y));
             return true;
         }
@@ -696,8 +699,10 @@ public final class NeofontrenderConfigScreen {
         @Override
         public boolean layoutWidgets() {
             int width = getArea().w();
-            place(label, 0, 0, width, 12);
-            place(field, 0, 16, width, Math.max(18, getArea().h() - 16));
+            Minecraft mc = Minecraft.getMinecraft();
+            int labelHeight = mc.fontRenderer.FONT_HEIGHT + 3;
+            place(label, 0, 0, width, labelHeight);
+            place(field, 0, labelHeight + 4, width, Math.max(18, getArea().h() - labelHeight - 4));
             return true;
         }
     }
@@ -720,12 +725,6 @@ public final class NeofontrenderConfigScreen {
         @Override
         public boolean layoutWidgets() {
             int width = getArea().w();
-            if (width < 360) {
-                int half = Math.max(18, (getArea().h() - 8) / 2);
-                place(size, 0, 0, width, half);
-                place(baseline, 0, half + 8, width, half);
-                return true;
-            }
             int gap = 10;
             int item = Math.max(0, (width - gap) / 2);
             place(size, 0, 0, item, getArea().h());
@@ -756,77 +755,65 @@ public final class NeofontrenderConfigScreen {
 
         @Override
         public boolean layoutWidgets() {
-            place(label, 0, 0, getArea().w(), 12);
-            place(slider, 0, 18, getArea().w(), Math.max(20, getArea().h() - 18));
+            int width = getArea().w();
+            Minecraft mc = Minecraft.getMinecraft();
+            int labelHeight = mc.fontRenderer.FONT_HEIGHT + 3;
+            place(label, 0, 0, width, labelHeight);
+            int sliderTop = labelHeight + 6;
+            int sliderHeight = Math.max(20, getArea().h() - sliderTop);
+            place(slider, 0, sliderTop, width, sliderHeight);
+            if (getArea().h() <= 0) {
+                getArea().setSize(GuiAxis.Y, sliderTop + 20);
+            }
             return true;
         }
     }
 
-    private static final class OptionsSection extends ParentWidget<OptionsSection> implements ILayoutWidget {
-        private final Flow flow;
-
-        private OptionsSection(Staged staged) {
-            this.flow = new Flow(GuiAxis.X)
-                    .wrap()
-                    .childPadding(8)
-                    .crossAxisChildPadding(8);
-            flow.child(toggleButtonKey("neofontrender.gui.option.enabled", "neofontrender.tooltip.enabled", 80, 20, () -> staged.enabled, v -> staged.enabled = v, () -> preview(staged)));
-            flow.child(engineButton(staged, 96, 20));
-            flow.child(toggleButtonKey("neofontrender.gui.option.string_mode", "neofontrender.tooltip.string_mode", 80, 20, () -> staged.skiaAdvancedStringMode, v -> staged.skiaAdvancedStringMode = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.autobase", "neofontrender.tooltip.autobase", 80, 20, () -> staged.autoBaseline, v -> staged.autoBaseline = v, () -> preview(staged)));
-            flow.child(aaModeButton(staged, 140, 20));
-            flow.child(toggleButtonKey("neofontrender.gui.option.fractional", "neofontrender.tooltip.fractional", 80, 20, () -> staged.fractionalMetrics, v -> staged.fractionalMetrics = v, () -> preview(staged)));
-            flow.child(styleButton(staged, 80, 20));
-            flow.child(toggleButtonKey("neofontrender.gui.option.builtins", "neofontrender.tooltip.builtins", 80, 20, () -> staged.builtinFallbacks, v -> staged.builtinFallbacks = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.autoscale", "neofontrender.tooltip.autoscale", 80, 20, () -> staged.adaptiveRasterScale, v -> staged.adaptiveRasterScale = v, () -> preview(staged)));
-            child(flow);
-        }
-
-        @Override
-        public boolean layoutWidgets() {
-            place(flow, 0, 0, getArea().w(), getArea().h());
-            return true;
-        }
+    private static Flow buildOptionsFlow(Staged staged) {
+        return new Flow(GuiAxis.X)
+                .wrap()
+                .childPadding(8)
+                .crossAxisChildPadding(8)
+                .child(toggleButtonKey("neofontrender.gui.option.enabled", "neofontrender.tooltip.enabled", 120, 20, () -> staged.enabled, v -> staged.enabled = v, () -> preview(staged)))
+                .child(engineButton(staged, 120, 20))
+                .child(toggleButtonKey("neofontrender.gui.option.string_mode", "neofontrender.tooltip.string_mode", 120, 20, () -> staged.skiaAdvancedStringMode, v -> staged.skiaAdvancedStringMode = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.autobase", "neofontrender.tooltip.autobase", 120, 20, () -> staged.autoBaseline, v -> staged.autoBaseline = v, () -> preview(staged)))
+                .child(aaModeButton(staged, 120, 20))
+                .child(toggleButtonKey("neofontrender.gui.option.fractional", "neofontrender.tooltip.fractional", 120, 20, () -> staged.fractionalMetrics, v -> staged.fractionalMetrics = v, () -> preview(staged)))
+                .child(styleButton(staged, 120, 20))
+                .child(toggleButtonKey("neofontrender.gui.option.builtins", "neofontrender.tooltip.builtins", 120, 20, () -> staged.builtinFallbacks, v -> staged.builtinFallbacks = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.autoscale", "neofontrender.tooltip.autoscale", 120, 20, () -> staged.adaptiveRasterScale, v -> staged.adaptiveRasterScale = v, () -> preview(staged)));
     }
 
-    private static final class AdvancedOptionsSection extends ParentWidget<AdvancedOptionsSection> implements ILayoutWidget {
-        private final Flow flow;
-
-        private AdvancedOptionsSection(Staged staged) {
-            this.flow = new Flow(GuiAxis.X)
-                    .wrap()
-                    .childPadding(8)
-                    .crossAxisChildPadding(8);
-            flow.child(toggleButtonKey("neofontrender.gui.option.autoscale", "neofontrender.tooltip.autoscale", 80, 20, () -> staged.adaptiveRasterScale, v -> staged.adaptiveRasterScale = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.linear", "neofontrender.tooltip.linear", 80, 20, () -> staged.interpolation, v -> staged.interpolation = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.mipmap", "neofontrender.tooltip.mipmap", 80, 20, () -> staged.mipmap, v -> staged.mipmap = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.pipeline", "neofontrender.tooltip.pipeline", 80, 20, () -> staged.enhancedTextPipeline, v -> staged.enhancedTextPipeline = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.shader", "neofontrender.tooltip.shader", 80, 20, () -> staged.shaderTextPipeline, v -> staged.shaderTextPipeline = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.edge_bleed", "neofontrender.tooltip.edge_bleed", 80, 20, () -> staged.textureEdgeBleed, v -> staged.textureEdgeBleed = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.gpu_offscreen", "neofontrender.tooltip.gpu_offscreen", 80, 20, () -> staged.skiaGpuOffscreen, v -> {
-                staged.skiaGpuOffscreen = v;
-                if (v) {
-                    staged.skiaGpuSubmitViaCpuTexture = true;
-                }
-            }, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.gpu_cpu_submit", "neofontrender.tooltip.gpu_cpu_submit", 80, 20, () -> staged.skiaGpuSubmitViaCpuTexture, v -> {
-                staged.skiaGpuSubmitViaCpuTexture = v;
-                if (v) {
-                    staged.skiaGpuOffscreen = true;
-                }
-            }, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.integer_scale", "neofontrender.tooltip.integer_scale", 80, 20, () -> staged.excludeIntegerScale, v -> staged.excludeIntegerScale = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.high_mag", "neofontrender.tooltip.high_mag", 80, 20, () -> staged.excludeHighMagnification, v -> staged.excludeHighMagnification = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.anisotropic", "neofontrender.tooltip.anisotropic", 80, 20, () -> staged.anisotropicFiltering, v -> staged.anisotropicFiltering = v, () -> preview(staged)));
-            flow.child(toggleButtonKey("neofontrender.gui.option.debug_stats", "neofontrender.tooltip.debug_stats", 80, 20, () -> staged.debugRenderStats, v -> staged.debugRenderStats = v, () -> preview(staged)));
-            child(flow);
-        }
-
-        @Override
-        public boolean layoutWidgets() {
-            place(flow, 0, 0, getArea().w(), getArea().h());
-            return true;
-        }
+    private static Flow buildAdvancedOptionsFlow(Staged staged) {
+        return new Flow(GuiAxis.X)
+                .wrap()
+                .childPadding(8)
+                .crossAxisChildPadding(8)
+                .widthRel(1f)
+                .coverChildrenHeight()
+                .child(toggleButtonKey("neofontrender.gui.option.autoscale", "neofontrender.tooltip.autoscale", 80, 20, () -> staged.adaptiveRasterScale, v -> staged.adaptiveRasterScale = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.linear", "neofontrender.tooltip.linear", 80, 20, () -> staged.interpolation, v -> staged.interpolation = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.mipmap", "neofontrender.tooltip.mipmap", 80, 20, () -> staged.mipmap, v -> staged.mipmap = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.pipeline", "neofontrender.tooltip.pipeline", 80, 20, () -> staged.enhancedTextPipeline, v -> staged.enhancedTextPipeline = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.shader", "neofontrender.tooltip.shader", 80, 20, () -> staged.shaderTextPipeline, v -> staged.shaderTextPipeline = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.edge_bleed", "neofontrender.tooltip.edge_bleed", 80, 20, () -> staged.textureEdgeBleed, v -> staged.textureEdgeBleed = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.gpu_offscreen", "neofontrender.tooltip.gpu_offscreen", 80, 20, () -> staged.skiaGpuOffscreen, v -> {
+                    staged.skiaGpuOffscreen = v;
+                    if (v) {
+                        staged.skiaGpuSubmitViaCpuTexture = true;
+                    }
+                }, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.gpu_cpu_submit", "neofontrender.tooltip.gpu_cpu_submit", 80, 20, () -> staged.skiaGpuSubmitViaCpuTexture, v -> {
+                    staged.skiaGpuSubmitViaCpuTexture = v;
+                    if (v) {
+                        staged.skiaGpuOffscreen = true;
+                    }
+                }, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.integer_scale", "neofontrender.tooltip.integer_scale", 80, 20, () -> staged.excludeIntegerScale, v -> staged.excludeIntegerScale = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.high_mag", "neofontrender.tooltip.high_mag", 80, 20, () -> staged.excludeHighMagnification, v -> staged.excludeHighMagnification = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.anisotropic", "neofontrender.tooltip.anisotropic", 80, 20, () -> staged.anisotropicFiltering, v -> staged.anisotropicFiltering = v, () -> preview(staged)))
+                .child(toggleButtonKey("neofontrender.gui.option.debug_stats", "neofontrender.tooltip.debug_stats", 80, 20, () -> staged.debugRenderStats, v -> staged.debugRenderStats = v, () -> preview(staged)));
     }
 
     private static final class BrightnessSection extends ParentWidget<BrightnessSection> implements ILayoutWidget {
@@ -850,17 +837,33 @@ public final class NeofontrenderConfigScreen {
 
         @Override
         public boolean layoutWidgets() {
-            place(label, 0, 0, getArea().w(), 12);
-            place(slider, 0, 18, getArea().w(), Math.max(20, getArea().h() - 18));
+            int width = getArea().w();
+            Minecraft mc = Minecraft.getMinecraft();
+            int labelHeight = mc.fontRenderer.FONT_HEIGHT + 3;
+            place(label, 0, 0, width, labelHeight);
+            int sliderTop = labelHeight + 6;
+            int sliderHeight = Math.max(20, getArea().h() - sliderTop);
+            place(slider, 0, sliderTop, width, sliderHeight);
+            if (getArea().h() <= 0) {
+                getArea().setSize(GuiAxis.Y, sliderTop + 20);
+            }
             return true;
         }
     }
 
-    private static final class PipelineInfoWidget extends Widget<PipelineInfoWidget> {
+    private static final class PipelineInfoWidget extends Widget<PipelineInfoWidget> implements ILayoutWidget {
         private final Staged staged;
 
         private PipelineInfoWidget(Staged staged) {
             this.staged = staged;
+        }
+
+        @Override
+        public boolean layoutWidgets() {
+            Minecraft mc = Minecraft.getMinecraft();
+            int line = Math.max(18, mc.fontRenderer.FONT_HEIGHT + 6);
+            getArea().setSize(GuiAxis.Y, line * 7 + 16);
+            return true;
         }
 
         @Override
