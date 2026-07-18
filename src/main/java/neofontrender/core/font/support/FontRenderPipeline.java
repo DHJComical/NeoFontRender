@@ -216,7 +216,9 @@ public final class FontRenderPipeline {
             if (shaderChanged) {
                 GL20.glUseProgram(previousProgram);
             }
-            GL14.glBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            // GlStateManager caches blend factors in 1.12. Restoring through raw GL would make its
+            // cache disagree with the driver and cause the next premultiplied draw to use SRC_ALPHA.
+            GlStateManager.tryBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
             if (!blendEnabled) {
                 GlStateManager.disableBlend();
             }

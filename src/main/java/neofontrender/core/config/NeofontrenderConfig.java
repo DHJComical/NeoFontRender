@@ -295,6 +295,14 @@ public final class NeofontrenderConfig {
         return config.getOrElse("performance.prewarmBasicLatin", true);
     }
 
+    public static boolean signTextLodCulling() {
+        return config.getOrElse("performance.signTextLodCulling", true);
+    }
+
+    public static float signTextMinPixelHeight() {
+        return Math.max(0.0F, getFloat("performance.signTextMinPixelHeight", 4.0F));
+    }
+
     public static int skiaTextCacheMinEntries() {
         return Math.max(0, getInt("performance.skiaTextCacheMinEntries", 256));
     }
@@ -660,6 +668,8 @@ public final class NeofontrenderConfig {
             w.write("[performance]\n");
             w.write("asyncInit = true\n");
             w.write("prewarmBasicLatin = true\n");
+            w.write("signTextLodCulling = true\n");
+            w.write("signTextMinPixelHeight = 4.0\n");
             w.write("skiaTextCacheMinEntries = 256\n");
             w.write("skiaTextCacheMaxEntries = 2048\n");
             w.write("skiaTextCacheTtlSeconds = 300.0\n");
@@ -731,6 +741,8 @@ public final class NeofontrenderConfig {
         config.setComment("performance", "Performance tuning options.");
         config.setComment("performance.asyncInit", "Initialize font rasterization on a background thread.");
         config.setComment("performance.prewarmBasicLatin", "Pre-bake common Basic Latin and Latin-1 glyphs before enabling replacement rendering.");
+        config.setComment("performance.signTextLodCulling", "Use projected-size LOD and screen culling for sign text. The sign model is still rendered.");
+        config.setComment("performance.signTextMinPixelHeight", "Do not submit a sign text line when its projected height is below this many physical framebuffer pixels.");
         config.setComment("performance.skiaTextCacheMinEntries", "Minimum number of Skia rendered text textures kept when TTL cleanup runs.");
         config.setComment("performance.skiaTextCacheMaxEntries", "Maximum number of Skia rendered text textures kept in the LRU cache.");
         config.setComment("performance.skiaTextCacheTtlSeconds", "Seconds before an unused Skia rendered text texture can be evicted. 0 disables TTL cleanup.");
