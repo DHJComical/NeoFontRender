@@ -303,6 +303,34 @@ public final class NeofontrenderConfig {
         return Math.max(0.0F, getFloat("performance.signTextMinPixelHeight", 4.0F));
     }
 
+    public static boolean signTextBatching() {
+        return config.getOrElse("performance.signTextBatching", true);
+    }
+
+    public static boolean signTextFrustumCulling() {
+        return config.getOrElse("performance.signTextFrustumCulling", true);
+    }
+
+    public static boolean signModelLod() {
+        return config.getOrElse("performance.signModelLod", true);
+    }
+
+    public static float signModelLodDistance() {
+        return Math.max(4.0F, getFloat("performance.signModelLodDistance", 24.0F));
+    }
+
+    public static float signTextNearThreshold() {
+        return Math.max(1.0F, getFloat("performance.signTextNearThreshold", 6.0F));
+    }
+
+    public static float signTextNearSupersample() {
+        return Math.max(1.0F, getFloat("performance.signTextNearSupersample", 2.5F));
+    }
+
+    public static float signTextNearMaxRasterScale() {
+        return Math.max(8.0F, getFloat("performance.signTextNearMaxRasterScale", 32.0F));
+    }
+
     public static int skiaTextCacheMinEntries() {
         return Math.max(0, getInt("performance.skiaTextCacheMinEntries", 256));
     }
@@ -534,6 +562,10 @@ public final class NeofontrenderConfig {
         config.set("performance.prewarmBasicLatin", value);
     }
 
+    public static void setSignModelLod(boolean value) {
+        config.set("performance.signModelLod", value);
+    }
+
     public static void setSkiaTextCacheMinEntries(int value) {
         config.set("performance.skiaTextCacheMinEntries", value);
     }
@@ -670,6 +702,13 @@ public final class NeofontrenderConfig {
             w.write("prewarmBasicLatin = true\n");
             w.write("signTextLodCulling = true\n");
             w.write("signTextMinPixelHeight = 4.0\n");
+            w.write("signTextBatching = true\n");
+            w.write("signTextFrustumCulling = true\n");
+            w.write("signModelLod = true\n");
+            w.write("signModelLodDistance = 24.0\n");
+            w.write("signTextNearThreshold = 6.0\n");
+            w.write("signTextNearSupersample = 2.5\n");
+            w.write("signTextNearMaxRasterScale = 32.0\n");
             w.write("skiaTextCacheMinEntries = 256\n");
             w.write("skiaTextCacheMaxEntries = 2048\n");
             w.write("skiaTextCacheTtlSeconds = 300.0\n");
@@ -743,6 +782,13 @@ public final class NeofontrenderConfig {
         config.setComment("performance.prewarmBasicLatin", "Pre-bake common Basic Latin and Latin-1 glyphs before enabling replacement rendering.");
         config.setComment("performance.signTextLodCulling", "Use projected-size LOD and screen culling for sign text. The sign model is still rendered.");
         config.setComment("performance.signTextMinPixelHeight", "Do not submit a sign text line when its projected height is below this many physical framebuffer pixels.");
+        config.setComment("performance.signTextBatching", "Combine the four text lines of each sign into one centered Skia texture and one draw call. Disable for vanilla-compatible per-line sign rendering.");
+        config.setComment("performance.signTextFrustumCulling", "Skip the complete sign renderer when its model bounds are outside the camera frustum.");
+        config.setComment("performance.signModelLod", "Replace distant sign board/stick boxes with flat textured geometry using the currently bound sign texture.");
+        config.setComment("performance.signModelLodDistance", "Distance in blocks where the low-poly sign model starts.");
+        config.setComment("performance.signTextNearThreshold", "Projected pixels per text unit where the close-up high-resolution sign text path starts.");
+        config.setComment("performance.signTextNearSupersample", "Close-up sign text raster pixels per projected framebuffer pixel.");
+        config.setComment("performance.signTextNearMaxRasterScale", "Maximum close-up sign text raster scale; higher values are sharper but use more texture memory.");
         config.setComment("performance.skiaTextCacheMinEntries", "Minimum number of Skia rendered text textures kept when TTL cleanup runs.");
         config.setComment("performance.skiaTextCacheMaxEntries", "Maximum number of Skia rendered text textures kept in the LRU cache.");
         config.setComment("performance.skiaTextCacheTtlSeconds", "Seconds before an unused Skia rendered text texture can be evicted. 0 disables TTL cleanup.");

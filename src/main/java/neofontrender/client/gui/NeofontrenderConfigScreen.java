@@ -860,6 +860,7 @@ public final class NeofontrenderConfigScreen {
                 .add(toggleButtonKey("neofontrender.gui.option.integer_scale", "neofontrender.tooltip.integer_scale", 112, 20, () -> staged.excludeIntegerScale, v -> staged.excludeIntegerScale = v, () -> preview(staged)))
                 .add(toggleButtonKey("neofontrender.gui.option.high_mag", "neofontrender.tooltip.high_mag", 112, 20, () -> staged.excludeHighMagnification, v -> staged.excludeHighMagnification = v, () -> preview(staged)))
                 .add(toggleButtonKey("neofontrender.gui.option.anisotropic", "neofontrender.tooltip.anisotropic", 112, 20, () -> staged.anisotropicFiltering, v -> staged.anisotropicFiltering = v, () -> preview(staged)))
+                .add(toggleButtonKey("neofontrender.gui.option.sign_model_lod", "neofontrender.tooltip.sign_model_lod", 112, 20, () -> staged.signModelLod, v -> staged.signModelLod = v, () -> preview(staged)))
                 .add(toggleButtonKey("neofontrender.gui.option.debug_stats", "neofontrender.tooltip.debug_stats", 112, 20, () -> staged.debugRenderStats, v -> staged.debugRenderStats = v, () -> preview(staged)));
     }
 
@@ -1003,6 +1004,7 @@ public final class NeofontrenderConfigScreen {
         private final boolean originalSkiaMonochromeText = NeofontrenderConfig.skiaMonochromeText();
         private final boolean originalPremultipliedAlpha = NeofontrenderConfig.enablePremultipliedAlpha();
         private final boolean originalDebugRenderStats = NeofontrenderConfig.debugRenderStats();
+        private final boolean originalSignModelLod = NeofontrenderConfig.signModelLod();
         private final String originalBrightness = Float.toString(NeofontrenderConfig.renderingBrightness());
         private final boolean originalTextureEdgeBleed = NeofontrenderConfig.textureEdgeBleed();
 
@@ -1022,6 +1024,7 @@ public final class NeofontrenderConfigScreen {
         private boolean skiaMonochromeText = originalSkiaMonochromeText;
         private boolean premultipliedAlpha = originalPremultipliedAlpha;
         private boolean debugRenderStats = originalDebugRenderStats;
+        private boolean signModelLod = originalSignModelLod;
         private String brightness = originalBrightness;
         private boolean textureEdgeBleed = originalTextureEdgeBleed;
         private String fontName = originalFontName;
@@ -1073,6 +1076,7 @@ public final class NeofontrenderConfigScreen {
             NeofontrenderConfig.setSkiaMonochromeText(skiaMonochromeText);
             NeofontrenderConfig.setEnablePremultipliedAlpha(premultipliedAlpha);
             NeofontrenderConfig.setDebugRenderStats(debugRenderStats);
+            NeofontrenderConfig.setSignModelLod(signModelLod);
             NeofontrenderConfig.setRenderingBrightness(parseFloat(brightness, 3.0F, 0.0F, 12.0F));
             NeofontrenderConfig.setTextureEdgeBleed(textureEdgeBleed);
                 NeofontrenderConfig.setFontName(selectedFont().isEmpty()
@@ -1110,6 +1114,7 @@ public final class NeofontrenderConfigScreen {
             NeofontrenderConfig.setSkiaMonochromeText(originalSkiaMonochromeText);
             NeofontrenderConfig.setEnablePremultipliedAlpha(originalPremultipliedAlpha);
             NeofontrenderConfig.setDebugRenderStats(originalDebugRenderStats);
+            NeofontrenderConfig.setSignModelLod(originalSignModelLod);
             NeofontrenderConfig.setRenderingBrightness(parseFloat(originalBrightness, 3.0F, 0.0F, 12.0F));
             NeofontrenderConfig.setTextureEdgeBleed(originalTextureEdgeBleed);
             NeofontrenderConfig.setFontName(originalFontName);

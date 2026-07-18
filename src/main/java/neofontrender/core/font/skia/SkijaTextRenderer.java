@@ -21,6 +21,7 @@ import io.github.humbleui.skija.paragraph.FontCollection;
 import io.github.humbleui.skija.paragraph.Paragraph;
 import io.github.humbleui.skija.paragraph.ParagraphBuilder;
 import io.github.humbleui.skija.paragraph.ParagraphStyle;
+import io.github.humbleui.skija.paragraph.Alignment;
 import io.github.humbleui.skija.paragraph.DecorationLineStyle;
 import io.github.humbleui.skija.paragraph.DecorationStyle;
 import io.github.humbleui.skija.paragraph.TextStyle;
@@ -338,6 +339,69 @@ public final class SkijaTextRenderer implements TextRenderBackend {
         }
     }
 
+    /**
+     * Render all four vanilla sign lines into one centered paragraph texture. SignRenderer keeps
+     * one stable model/view transform while drawing its lines, so this removes three immediate GL
+     * submissions without changing the surrounding world transform.
+     */
+    public TextRenderResult renderSign(String[] lines) {
+        if (lines == null || lines.length == 0) {
+            return RenderedText.EMPTY;
+        }
+        StringBuilder joined = new StringBuilder();
+        for (int i = 0; i < 4; i++) {
+            if (i > 0) {
+                joined.append('\n');
+            }
+            if (i < lines.length && lines[i] != null) {
+                joined.append(lines[i]);
+            }
+        }
+        String text = joined.toString();
+        float scale = currentRasterScale();
+        float projectedScale = FontRenderTuning.currentDrawContext().pixelScale();
+        if (projectedScale >= NeofontrenderConfig.signTextNearThreshold()) {
+            // Only close signs receive the expensive high-resolution bucket. Applying this to all
+            // signs would multiply the cache/VRAM cost of the large sign walls this path targets.
+            float requested = projectedScale * NeofontrenderConfig.signTextNearSupersample();
+            float nearScale = Math.min(NeofontrenderConfig.signTextNearMaxRasterScale(), requested);
+            scale = Math.max(scale, Math.round(nearScale * 2.0F) * 0.5F);
+        }
+        RenderKey key = RenderKey.formatted("\u0001sign\n" + text, 0, false, scale,
+                texturePathCacheBucket(), true);
+        RenderedText cached = renderCache.get(key);
+        if (cached != null) {
+            if (debugRenderStats()) {
+                renderCacheHits++;
+            }
+            cached.touch();
+            return cached;
+        }
+        if (debugRenderStats()) {
+            renderCacheMisses++;
+        }
+        try (Paragraph paragraph = buildFormattedParagraph(text, 0, false, scale, Alignment.CENTER)) {
+            float measuredWidth = 90.0F;
+            int border = computeBorder(scale);
+            int width = Math.max(1, (int) Math.ceil((measuredWidth + border * 2.0F) * scale));
+            // Paragraph alignment must use only the 90px content area. The surface is wider to
+            // carry transparent glyph padding, and paintX already moves the paragraph past that
+            // padding. Including the border in layout width applied it twice and made centered
+            // sign text drift right whenever adaptive raster LOD changed the border size.
+            paragraph.layout(measuredWidth * scale);
+            RenderedText rendered = rasterizeParagraph(paragraph, key.hashCode(), measuredWidth, width, scale, border)
+                    // Keep the world-space quad width independent of raster-scale rounding. Without
+                    // this, adaptive LOD buckets change ceil(width * scale) and shift the sign text.
+                    .withFixedDrawWidth(measuredWidth + border * 2.0F);
+            renderCache.put(key, rendered);
+            trimRenderCache();
+            return rendered;
+        } catch (Throwable t) {
+            NeoFontRender.LOGGER.error("Failed to render batched sign text", t);
+            return RenderedText.EMPTY;
+        }
+    }
+
     public void prewarmBasicLatin() {
         prewarming = true;
         try {
@@ -376,20 +440,28 @@ public final class SkijaTextRenderer implements TextRenderBackend {
     }
 
     private RenderedText rasterize(String text, int argb, boolean bold, boolean italic, float oversample, int cacheHash) throws IOException {
-        float measuredWidth = Math.max(1.0F, measure(text, bold, italic));
-        int border = computeBorder(oversample);
-        int width = Math.max(1, (int) Math.ceil((measuredWidth + border * 2.0F) * oversample));
+        // Measure and rasterize with the same Paragraph. Calling measure() here used to build
+        // and shape a temporary Paragraph, then this method built a second one for painting.
         try (Paragraph paragraph = buildParagraph(text, argb, bold, italic, oversample)) {
+            paragraph.layout(100000.0F * oversample);
+            float measuredWidth = Math.max(1.0F,
+                    Math.max(paragraph.getMaxIntrinsicWidth(), paragraph.getLongestLine()) / oversample);
+            int border = computeBorder(oversample);
+            int width = Math.max(1, (int) Math.ceil((measuredWidth + border * 2.0F) * oversample));
             paragraph.layout(width);
             return rasterizeParagraph(paragraph, cacheHash, measuredWidth, width, oversample, border);
         }
     }
 
     private RenderedText rasterizeFormatted(String text, int argb, boolean shadow, float oversample, int cacheHash) throws IOException {
-        float measuredWidth = Math.max(1.0F, measureFormatted(text, argb, shadow));
-        int border = computeBorder(oversample);
-        int width = Math.max(1, (int) Math.ceil((measuredWidth + border * 2.0F) * oversample));
+        // Formatted spans pay the same shaping cost, so keep their measurement and paint pass on
+        // one Paragraph as well. This removes duplicate fallback/style processing on cache misses.
         try (Paragraph paragraph = buildFormattedParagraph(text, argb, shadow, oversample)) {
+            paragraph.layout(100000.0F * oversample);
+            float measuredWidth = Math.max(1.0F,
+                    Math.max(paragraph.getMaxIntrinsicWidth(), paragraph.getLongestLine()) / oversample);
+            int border = computeBorder(oversample);
+            int width = Math.max(1, (int) Math.ceil((measuredWidth + border * 2.0F) * oversample));
             paragraph.layout(width);
             return rasterizeParagraph(paragraph, cacheHash, measuredWidth, width, oversample, border);
         }
@@ -814,7 +886,16 @@ public final class SkijaTextRenderer implements TextRenderBackend {
     }
 
     private Paragraph buildFormattedParagraph(String text, int baseArgb, boolean shadow, float scale) {
-        ParagraphBuilder builder = new ParagraphBuilder(new ParagraphStyle(), fontCollection);
+        return buildFormattedParagraph(text, baseArgb, shadow, scale, null);
+    }
+
+    private Paragraph buildFormattedParagraph(String text, int baseArgb, boolean shadow, float scale,
+                                               Alignment alignment) {
+        ParagraphStyle paragraphStyle = new ParagraphStyle();
+        if (alignment != null) {
+            paragraphStyle.setAlignment(alignment);
+        }
+        ParagraphBuilder builder = new ParagraphBuilder(paragraphStyle, fontCollection);
         for (FormattedRun run : splitFormattedRuns(text, baseArgb, shadow)) {
             appendStyledText(builder, run.text, run.argb, run.bold, run.italic, run.underline, run.strikethrough, scale);
         }
@@ -2013,6 +2094,11 @@ public final class SkijaTextRenderer implements TextRenderBackend {
             this.verticalOffset = verticalOffset;
             this.flipY = flipY;
             this.lastAccessMillis = System.currentTimeMillis();
+        }
+
+        private RenderedText withFixedDrawWidth(float fixedWidth) {
+            return new RenderedText(location, texture, advance, width, height, fixedWidth, drawHeight,
+                    rasterScale, horizontalOffset, verticalOffset, flipY);
         }
 
         DynamicTexture getCpuTexture() {
