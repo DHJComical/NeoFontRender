@@ -112,7 +112,9 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          # RetroFuturaGradle 2.0.2 is built for class-file version 69. The project toolchain still
+          # compiles the mod for Java 8; this JDK only runs Gradle itself on the CI packaging host.
+          java-version: '25'
           distribution: 'zulu'
           cache: gradle
 
