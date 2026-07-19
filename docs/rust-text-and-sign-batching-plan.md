@@ -27,6 +27,70 @@ shader 和不同 OpenGL 上下文实现冲突的风险。
 不在第一版引入 Rust OpenGL。只有 Java 提交路径被证明仍是决定性瓶颈，并且共享上下文
 生命周期能被可靠验证后，才考虑 Rust 直接提交。
 
+### 2026-07-19 cosmic-text 主分支实测
+
+研究基于 `pop-os/cosmic-text` 提交
+`899d74d39b1b2b0f8b9eac544f415388a61328e4`：
+
+- crate 版本 `0.19.0`，`MIT OR Apache-2.0`。
+- 最低 Rust 版本 `1.89`；本机 `rustc 1.91.1` 可构建。
+- 当前 shaping 是 `HarfRust`，不是早期方案中提到的 `rustybuzz`。
+- 栅格化仍由可选 `swash` 提供，支持 mask、彩色 glyph 和 outline。
+- Windows/Java 显式传入字体数据时，建议关闭默认 feature，使用：
+
+```toml
+cosmic-text = { version = "0.19", default-features = false, features = ["std", "swash"] }
+```
+
+这样不引入 `fontconfig`、`vi`、`syntect` 和编辑器功能。`FontSystem` 的 fontdb 应由 JNI
+接口加载 Java 选定的字体字节，不能依赖不同系统的字体扫描结果，否则三种后端的 fallback
+顺序无法保持一致。
+
+当前最小依赖树仍包含两套 `skrifa`：cosmic-text 使用 `0.40`，swash 使用 `0.44`。这不是
+架构阻塞，但会增加一部分 native 体积；升级依赖收敛后可重新测量。
+
+实际创建了 Windows `cdylib`，强制链接 `FontSystem + Buffer + Advanced shaping +
+SwashCache + Buffer.draw` 完整路径，并使用：
+
+```toml
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+```
+
+结果为 `1,562,624` 字节。该数字尚未包含 JNI crate、atlas allocator 和项目胶水，合理目标
+应按每平台约 2-3 MiB 估算，而不是把 1.49 MiB 当成最终承诺。
+
+当前 mod 的两份内置字体分别约为：
+
+```text
+sarasa_ui_sc_regular.ttf      24,049,996 bytes
+noto_color_emoji_regular.ttf 25,111,640 bytes
+```
+
+因此“减小体积”不能只替换 Skija。建议产物拆分为：
+
+```text
+neofontrender-core.jar        Java + 当前平台 cosmic-text native
+neofontrender-fontpack.jar    可选 Sarasa + Noto Color Emoji
+```
+
+或首次运行优先选择系统字体，仅在用户安装可选字体包时提供完全一致的跨平台 fallback。
+若仍把约 49 MiB 字体嵌入主 JAR，Rust 后端只能削减 Skija/ICU/多平台 native 部分，无法实现
+小型主包。
+
+API 结论：
+
+- `Buffer::set_text` 与 `set_rich_text` 可以表达 Minecraft styled spans。
+- `shape_until_scroll` 负责 shaping/layout，`layout_runs()` 暴露最终 glyph 位置。
+- `SwashCache::get_image` 可取得 mask/color glyph 位图；生产实现不应使用逐像素 `draw`
+  callback 穿过 JNI，而应在 Rust 内直接写 atlas update buffer。
+- `Buffer::draw` 是方便的 CPU callback API，不适合作为 Java 边界。
+- 第一版应返回 glyph instances 和合并后的 atlas dirty rectangles，Java 一次读取 DirectBuffer。
+
 ## JNI 边界
 
 JNI 必须按一整段文本或一整个告示牌传输，禁止逐字符、逐 glyph 调用。
