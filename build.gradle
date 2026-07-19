@@ -389,6 +389,139 @@ tasks.register('skijaEmojiTest', JavaExec) {
     args file("${buildDir}/skija-debug").absolutePath
 }
 
+def packagedJar = tasks.named('reobfJar')
+
+tasks.register('fullJar', Zip) {
+    group = 'build'
+    description = 'Packages the complete mod with bundled fonts and all Skija platforms.'
+    dependsOn packagedJar
+    archiveBaseName.set(propertyString('mod_id'))
+    archiveVersion.set(propertyString('mod_version'))
+    archiveClassifier.set('full')
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('coreJar', Zip) {
+    group = 'build'
+    description = 'Packages Cosmic/AWT/vanilla rendering without bundled fonts or Skija binaries.'
+    dependsOn packagedJar
+    archiveBaseName.set(propertyString('mod_id'))
+    archiveVersion.set(propertyString('mod_version'))
+    archiveClassifier.set('core')
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) }) {
+        exclude 'mcmod.info'
+    }
+
+    // Keep the small NFR Skia adapter classes compiled into core. Several long-lived mixins have
+    // optional method references to them, and removing those classes can make old JVM verifiers
+    // fail before the configured Cosmic backend is selected. The actual Skija API, ICU data, and
+    // native libraries are removed, so the adapter remains dormant and contributes negligible size.
+    exclude 'io/github/humbleui/**'
+    exclude 'META-INF/versions/**/io/github/humbleui/**'
+    exclude 'META-INF/maven/io.github.humbleui/**'
+    exclude 'assets/neofontrender/fonts/*.ttf'
+    exclude 'neofontrender/resources/NeoFontRenderResources.class'
+    exclude 'neofontrender/skia/NeoFontRenderSkia.class'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    from('src/corePack/resources') {
+        expand(
+                'mod_id': propertyString('mod_id'),
+                'mod_name': propertyString('mod_name'),
+                'mod_version': propertyString('mod_version'),
+                'mod_description': propertyString('mod_description'),
+                'mod_authors': propertyStringList('mod_authors', ',').join(', '),
+                'mod_credits': propertyString('mod_credits'),
+                'mod_url': propertyString('mod_url'),
+                'mod_update_json': propertyString('mod_update_json'),
+                'mod_logo_path': propertyString('mod_logo_path')
+        )
+    }
+
+    doLast {
+        def archive = archiveFile.get().asFile
+        def forbidden = zipTree(archive).matching {
+            include 'io/github/humbleui/**'
+            include 'META-INF/versions/**/io/github/humbleui/**'
+            include 'assets/neofontrender/fonts/*.ttf'
+        }.files
+        if (!forbidden.empty) {
+            throw new GradleException("Core package still contains excluded Skija/font entries: ${forbidden}")
+        }
+    }
+}
+
+tasks.register('resourcesJar', Zip) {
+    group = 'build'
+    description = 'Packages the bundled fonts as a standalone Forge resource mod.'
+    dependsOn packagedJar
+    archiveBaseName.set(propertyString('mod_id') + '-resources')
+    archiveVersion.set(propertyString('mod_version'))
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) }) {
+        include 'assets/neofontrender/fonts/**'
+        include 'neofontrender/resources/NeoFontRenderResources.class'
+    }
+    from('src/resourcePack/resources') {
+        expand(
+                'mod_version': propertyString('mod_version'),
+                'mod_authors': propertyStringList('mod_authors', ',').join(', '),
+                'mod_url': propertyString('mod_url')
+        )
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('skiaJar', Zip) {
+    group = 'build'
+    description = 'Packages Skija APIs and native libraries as a standalone optional Forge mod.'
+    dependsOn packagedJar
+    archiveBaseName.set(propertyString('mod_id') + '-skia')
+    archiveVersion.set(propertyString('mod_version'))
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) }) {
+        include 'io/github/humbleui/**'
+        include 'META-INF/versions/**/io/github/humbleui/**'
+        include 'META-INF/maven/io.github.humbleui/**'
+        include 'neofontrender/skia/NeoFontRenderSkia.class'
+    }
+    from('src/skiaPack/resources') {
+        expand(
+                'mod_version': propertyString('mod_version'),
+                'mod_authors': propertyStringList('mod_authors', ',').join(', '),
+                'mod_url': propertyString('mod_url')
+        )
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('packageVariants') {
+    group = 'build'
+    description = 'Builds both the full and core distribution jars.'
+    dependsOn 'fullJar', 'coreJar', 'resourcesJar', 'skiaJar'
+}
+
+tasks.register('coreCosmicSmokeTest', JavaExec) {
+    group = 'verification'
+    description = 'Validates that the core jar can shape text and find the OS emoji font without bundled TTFs.'
+    dependsOn 'coreJar'
+    classpath = files(tasks.named('coreJar').flatMap { it.archiveFile })
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(8))
+    })
+    mainClass.set('neofontrender.core.font.cosmic.CosmicSmokeTest')
+    args '--system-only'
+}
+
 tasks.register('cosmicSmokeTest', JavaExec) {
     group = 'verification'
     description = 'Loads the bundled JNI library and validates cosmic-text shaping/rasterization.'

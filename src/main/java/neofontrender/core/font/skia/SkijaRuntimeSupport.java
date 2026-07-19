@@ -25,7 +25,48 @@ public final class SkijaRuntimeSupport {
                     "No embedded Skija native is packaged for platform " + normalizedOsName() + "/" + normalizedOsArch());
         }
 
+        if (!hasSkijaApi()) {
+            return Compatibility.unsupported(javaVersion, classifier,
+                    "Skija runtime mod is not installed (use the full package or add neofontrender-skia)");
+        }
+
+        String nativeResource = nativeResourcePath();
+        if (nativeResource == null || SkijaRuntimeSupport.class.getResource(nativeResource) == null) {
+            return Compatibility.unsupported(javaVersion, classifier,
+                    "Skija runtime is missing the native library for " + normalizedOsName() + "/" + normalizedOsArch());
+        }
+
         return Compatibility.supported(javaVersion, classifier);
+    }
+
+    private static boolean hasSkijaApi() {
+        try {
+            // Do not initialize Skija here: this capability check runs while the settings screen is
+            // open and loading the native backend belongs to FontManager's guarded reload path.
+            Class.forName("io.github.humbleui.skija.FontMgr", false, SkijaRuntimeSupport.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    private static String nativeResourcePath() {
+        String os = normalizedOsName();
+        String arch = normalizedOsArch();
+        String platformArch = isArm64(arch) ? "arm64" : isX64(arch) ? "x64" : null;
+        if (platformArch == null) {
+            return null;
+        }
+        if (os.contains("win")) {
+            return "/io/github/humbleui/skija/windows/" + platformArch + "/skija.dll";
+        }
+        if (os.contains("mac") || os.contains("darwin")) {
+            return "/io/github/humbleui/skija/macos/" + platformArch + "/libskija.dylib";
+        }
+        if (os.contains("linux")) {
+            return "/io/github/humbleui/skija/linux/" + platformArch + "/libskija.so";
+        }
+        return null;
     }
 
     private static int detectJavaMajorVersion() {

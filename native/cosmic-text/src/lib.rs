@@ -1,4 +1,5 @@
 use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, Style, SwashCache, Weight};
+use cosmic_text::fontdb::{Family as DbFamily, Query};
 use jni::objects::{JByteArray, JClass, JObjectArray, JString};
 use jni::sys::{jbyteArray, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
@@ -81,7 +82,15 @@ pub extern "system" fn Java_neofontrender_core_font_cosmic_CosmicNative_createEn
                 }))
                 .map(|face| face.id)
         };
-        let primary_id = system_primary_id.or(byte_primary_id);
+        // A core build deliberately omits the bundled default font. Its persisted config can still
+        // point at that resource, so fall back to fontdb's platform sans-serif selection instead of
+        // rejecting engine creation. load_system_fonts() also supplies Segoe UI Emoji, Apple Color
+        // Emoji, or the installed Linux emoji font without shipping a second copy in the mod.
+        let system_sans_id = db.query(&Query {
+            families: &[DbFamily::SansSerif],
+            ..Query::default()
+        });
+        let primary_id = system_primary_id.or(byte_primary_id).or(system_sans_id);
         let primary_family = primary_id
             .and_then(|id| db.face(id))
             .and_then(|face| face.families.first().map(|family| family.0.clone()));

@@ -18,12 +18,14 @@ public final class CosmicSmokeTest {
         if (!compatibility.isSupported()) {
             throw new IllegalStateException(compatibility.getMessage());
         }
-        byte[] font = readResource("/assets/neofontrender/fonts/sarasa_ui_sc_regular.ttf");
-        String primaryFamily = args.length > 0 ? args[0] : "";
-        byte[] emojiFont = args.length > 1
+        boolean systemOnly = args.length > 0 && "--system-only".equals(args[0]);
+        byte[] font = systemOnly ? null : readResource("/assets/neofontrender/fonts/sarasa_ui_sc_regular.ttf");
+        String primaryFamily = systemOnly ? "" : args.length > 0 ? args[0] : "";
+        byte[] emojiFont = systemOnly ? null : args.length > 1
                 ? Files.readAllBytes(Paths.get(args[1]))
                 : readResource("/assets/neofontrender/fonts/noto_color_emoji_regular.ttf");
-        long engine = CosmicNative.createEngine(new byte[][] {font, emojiFont}, primaryFamily,
+        byte[][] suppliedFonts = systemOnly ? new byte[0][] : new byte[][] {font, emojiFont};
+        long engine = CosmicNative.createEngine(suppliedFonts, primaryFamily,
                 9.0F, Locale.getDefault().toLanguageTag());
         try {
             String resolvedFamily = CosmicNative.primaryFamily(engine);
@@ -67,16 +69,18 @@ public final class CosmicSmokeTest {
             byte[] emojiRaster = CosmicNative.render(engine, "A\uD83D\uDE00\u2764\uFE0F\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66", 0xFFFFFFFF, 0, 2.0F);
             assertTransparentBorder(emojiRaster);
             boolean fallbackChromatic = hasChromaticPixels(emojiRaster);
-            long emojiEngine = CosmicNative.createEngine(new byte[][] {emojiFont}, "",
-                    9.0F, Locale.getDefault().toLanguageTag());
-            boolean primaryChromatic;
-            try {
-                primaryChromatic = hasChromaticPixels(CosmicNative.render(
-                        emojiEngine, "\uD83D\uDE00\u2764\uFE0F", 0xFFFFFFFF, 0, 2.0F));
-            } finally {
-                CosmicNative.destroyEngine(emojiEngine);
+            boolean primaryChromatic = fallbackChromatic;
+            if (!systemOnly) {
+                long emojiEngine = CosmicNative.createEngine(new byte[][] {emojiFont}, "",
+                        9.0F, Locale.getDefault().toLanguageTag());
+                try {
+                    primaryChromatic = hasChromaticPixels(CosmicNative.render(
+                            emojiEngine, "\uD83D\uDE00\u2764\uFE0F", 0xFFFFFFFF, 0, 2.0F));
+                } finally {
+                    CosmicNative.destroyEngine(emojiEngine);
+                }
             }
-            System.out.println("Cosmic emoji smoke: fallbackColor=" + fallbackChromatic
+            System.out.println("Cosmic emoji smoke: systemOnly=" + systemOnly + ", fallbackColor=" + fallbackChromatic
                     + ", primaryColor=" + primaryChromatic);
             if (!fallbackChromatic || !primaryChromatic) {
                 throw new IllegalStateException("cosmic-text emoji color path failed: fallback="

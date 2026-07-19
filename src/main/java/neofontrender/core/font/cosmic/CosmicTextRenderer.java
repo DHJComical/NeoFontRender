@@ -55,9 +55,9 @@ public final class CosmicTextRenderer implements TextRenderBackend {
     public CosmicTextRenderer(TextureManager textureManager, IResourceManager resourceManager) throws IOException {
         this.textureManager = textureManager;
         List<byte[]> fonts = loadConfiguredFonts(resourceManager);
-        if (fonts.isEmpty()) {
-            throw new IOException("no configured font data could be loaded for cosmic-text");
-        }
+        // The core package intentionally contains no bundled TTF files. cosmic-text/fontdb still
+        // loads the operating system font database, so an empty byte-font list is a supported mode
+        // and is also what lets the OS-provided color emoji font participate in fallback.
         // Keep the configured family name separate from byte-backed fallback fonts. Skia can
         // resolve a system family such as "JetBrains Mono" directly, while the old Cosmic bridge
         // silently skipped it and promoted the first bundled fallback (usually Sarasa) to primary.

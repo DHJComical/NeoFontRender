@@ -32,6 +32,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraftforge.fml.common.Loader;
 import neofontrender.core.config.NeofontrenderConfig;
 import neofontrender.core.font.FontManager;
+import neofontrender.core.font.skia.SkijaRuntimeSupport;
 import neofontrender.core.font.support.FontRenderTuning;
 
 import java.awt.Desktop;
@@ -313,7 +314,7 @@ public final class NeofontrenderConfigScreen {
     private static String nextEngine(String engine) {
         String normalized = normalizeEngine(engine);
         if ("sfr".equals(normalized)) {
-            return "skia";
+            return skiaAvailable() ? "skia" : "cosmic";
         }
         if ("skia".equals(normalized)) {
             return "cosmic";
@@ -327,7 +328,8 @@ public final class NeofontrenderConfigScreen {
     private static String engineName(String engine) {
         String normalized = normalizeEngine(engine);
         if ("skia".equals(normalized)) {
-            return tr("neofontrender.gui.engine.skia");
+            return tr("neofontrender.gui.engine.skia")
+                    + (skiaAvailable() ? "" : " (" + tr("neofontrender.gui.unavailable") + ")");
         }
         if ("cosmic".equals(normalized)) {
             return tr("neofontrender.gui.engine.cosmic");
@@ -336,6 +338,10 @@ public final class NeofontrenderConfigScreen {
             return tr("neofontrender.gui.engine.vanilla");
         }
         return tr("neofontrender.gui.engine.sfr");
+    }
+
+    private static boolean skiaAvailable() {
+        return SkijaRuntimeSupport.checkCompatibility().isSupported();
     }
 
     private static String normalizeEngine(String engine) {

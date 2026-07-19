@@ -68,7 +68,16 @@ public class FontManager implements AutoCloseable {
         if (preferSkia) {
             SkijaRuntimeSupport.Compatibility compatibility = SkijaRuntimeSupport.checkCompatibility();
             if (!compatibility.isSupported()) {
-                neofontrender.NeoFontRender.LOGGER.warn("Skija renderer disabled: {}. Falling back to AWT font renderer", compatibility.getMessage());
+                neofontrender.NeoFontRender.LOGGER.warn("Skija renderer disabled: {}. Falling back to vanilla font renderer",
+                        compatibility.getMessage());
+                // A missing optional Skija add-on should be obvious. Silently selecting AWT or
+                // Cosmic makes a stale `rendering.engine=skia` config look successful and hides a
+                // broken installation, so preserve the configured value but render with vanilla.
+                this.active = false;
+                this.skiaActive = false;
+                this.cosmicActive = false;
+                resetVanillaFontTextureFiltering();
+                return;
             } else {
                 try {
                     this.textRenderBackend = new SkijaTextRenderer(textureManager, resourceManager);
@@ -83,9 +92,11 @@ public class FontManager implements AutoCloseable {
                     this.textRenderBackend = null;
                     this.skiaActive = false;
                     neofontrender.NeoFontRender.LOGGER.error(
-                            "Failed to initialize Skija renderer ({}); falling back to AWT font renderer",
+                            "Failed to initialize Skija renderer ({}); falling back to vanilla font renderer",
                             compatibility.getMessage(),
                             t);
+                    resetVanillaFontTextureFiltering();
+                    return;
                 }
             }
         }

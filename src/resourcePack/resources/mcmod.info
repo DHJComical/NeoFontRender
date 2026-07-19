@@ -1,0 +1,10 @@
+[{ 
+    "modid": "neofontrender_resources",
+    "name": "Neo Font Render Resources",
+    "version": "${mod_version}",
+    "mcversion": "1.12.2",
+    "description": "Optional bundled fonts for Neo Font Render Core.",
+    "authorList": ["${mod_authors}"],
+    "url": "${mod_url}",
+    "clientSideOnly": true
+}]
