@@ -243,12 +243,32 @@ jobs:
             "build/libs/neofontrender-resources-${VERSION}.jar"
             "build/libs/neofontrender-skia-${VERSION}.jar"
           )
+          notes="${RUNNER_TEMP}/neofontrender-release-notes.md"
+          cat > "$notes" <<'EOF'
+          ## Distribution files
+
+          - **`neofontrender-<version>-full.jar`**: all-in-one package. Includes the core mod,
+            bundled font resources, Skia runtime integration, and Cosmic native libraries.
+          - **`neofontrender-<version>-core.jar`**: lightweight core package. Uses the system
+            font path and does not bundle the optional Skia/font resource payload.
+          - **`neofontrender-resources-<version>.jar`**: optional bundled font/resource payload
+            for installations that keep resources separate from the core mod.
+          - **`neofontrender-skia-<version>.jar`**: optional Skia runtime package used with the
+            core mod when Skia rendering is desired.
+
+          The `full` package is the simplest choice for a normal installation. The other files
+          are provided for modular deployments and testing.
+          EOF
 
           # Manual rebuilds of the same version update the existing release instead of failing.
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" \
               --target "${GITHUB_SHA}" \
               --title "NeoFontRender ${VERSION}" \
-              --generate-notes
+              --notes-file "$notes"
+          else
+            gh release edit "$tag" \
+              --title "NeoFontRender ${VERSION}" \
+              --notes-file "$notes"
           fi
           gh release upload "$tag" "${archives[@]}" --clobber
