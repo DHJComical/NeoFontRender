@@ -2,9 +2,19 @@ name: Build and Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish after a successful build
+        required: false
+        type: boolean
+        default: false
+  pull_request:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
 
 jobs:
   cosmic-native:
@@ -34,6 +44,7 @@ jobs:
             target: aarch64-apple-darwin
             resource: macos-aarch64
             library: libneofontrender_cosmic.dylib
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,16 +54,22 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/cosmic-text
+          key: ${{ matrix.target }}
+
       - name: Install Linux ARM64 linker
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build native library
         shell: bash
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: |
-          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-          fi
+          set -euo pipefail
           cargo build \
             --manifest-path native/cosmic-text/Cargo.toml \
             --release \
@@ -66,22 +83,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cosmic-${{ matrix.resource }}
-          # Preserve the platform directory inside each artifact. merge-multiple can then combine
-          # same-named .so/.dylib files without overwriting a different architecture.
+          # Upload the directory rather than the single file so merge-multiple retains the
+          # resource path and same-named Linux/macOS libraries cannot overwrite each other.
           path: dist
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
-  build:
-    name: Package universal mod
+  package:
+    name: Package universal distributions
     needs: cosmic-native
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
 
       - name: Read gradle.properties
         uses: BrycensRanch/read-properties-action@v1
@@ -97,6 +111,9 @@ jobs:
           distribution: 'zulu'
           cache: gradle
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Download all Cosmic natives
         uses: actions/download-artifact@v4
         with:
@@ -104,37 +121,93 @@ jobs:
           path: cosmic-natives
           merge-multiple: true
 
-      - name: Build universal JAR
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-disabled: false
+      - name: Validate native bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=(
+            windows-x86_64/neofontrender_cosmic.dll
+            linux-x86_64/libneofontrender_cosmic.so
+            linux-aarch64/libneofontrender_cosmic.so
+            macos-x86_64/libneofontrender_cosmic.dylib
+            macos-aarch64/libneofontrender_cosmic.dylib
+          )
+          for library in "${expected[@]}"; do
+            test -s "cosmic-natives/${library}" || {
+              echo "Missing Cosmic native: ${library}" >&2
+              exit 1
+            }
+          done
 
-      - name: Run Gradle build
-        run: ./gradlew build -PcosmicNativeBundleDir="${{ github.workspace }}/cosmic-natives"
+      - name: Build distribution variants
+        run: >-
+          ./gradlew packageVariants
+          -PcosmicNativeBundleDir="${{ github.workspace }}/cosmic-natives"
 
-      - name: Upload universal JAR
+      - name: Verify distribution contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          full="build/libs/neofontrender-${{ steps.properties.outputs.mod_version }}-full.jar"
+          core="build/libs/neofontrender-${{ steps.properties.outputs.mod_version }}-core.jar"
+          resources="build/libs/neofontrender-resources-${{ steps.properties.outputs.mod_version }}.jar"
+          skia="build/libs/neofontrender-skia-${{ steps.properties.outputs.mod_version }}.jar"
+          for archive in "$full" "$core" "$resources" "$skia"; do
+            test -s "$archive" || { echo "Missing distribution: $archive" >&2; exit 1; }
+          done
+
+          full_entries="$(jar tf "$full")"
+          core_entries="$(jar tf "$core")"
+          for entry in \
+            assets/neofontrender/natives/windows-x86_64/neofontrender_cosmic.dll \
+            assets/neofontrender/natives/linux-x86_64/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/linux-aarch64/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/macos-x86_64/libneofontrender_cosmic.dylib \
+            assets/neofontrender/natives/macos-aarch64/libneofontrender_cosmic.dylib; do
+            grep -Fxq "$entry" <<<"$full_entries" || {
+              echo "Full JAR is missing $entry" >&2
+              exit 1
+            }
+          done
+          if grep -Eq '(^io/github/humbleui/|assets/neofontrender/fonts/.*\.ttf$)' <<<"$core_entries"; then
+            echo "Core JAR contains Skija or bundled TTF content" >&2
+            exit 1
+          fi
+
+      - name: Upload distributions
         uses: actions/upload-artifact@v4
         with:
-          name: neofontrender-universal
-          path: build/libs/*.jar
+          name: neofontrender-${{ steps.properties.outputs.mod_version }}
+          path: |
+            build/libs/neofontrender-${{ steps.properties.outputs.mod_version }}-full.jar
+            build/libs/neofontrender-${{ steps.properties.outputs.mod_version }}-core.jar
+            build/libs/neofontrender-resources-${{ steps.properties.outputs.mod_version }}.jar
+            build/libs/neofontrender-skia-${{ steps.properties.outputs.mod_version }}.jar
           if-no-files-found: error
 
       - name: Publish to Maven
-        if: github.event_name == 'push' && steps.properties.outputs.publish_to_maven == 'true' && steps.properties.outputs.publish_to_local_maven == 'true'
+        if: >-
+          (github.event_name == 'push' || inputs.publish == true) &&
+          steps.properties.outputs.publish_to_maven == 'true' &&
+          steps.properties.outputs.publish_to_local_maven == 'true'
         run: >-
           ./gradlew publish
           -PcosmicNativeBundleDir="${{ github.workspace }}/cosmic-natives"
           -P${{ steps.properties.outputs.maven_name }}Username=${{ secrets.MAVEN_USER }}
           -P${{ steps.properties.outputs.maven_name }}Password=${{ secrets.MAVEN_PASS }}
 
-      - name: Publish to CurseForge
-        if: github.event_name == 'push' && steps.properties.outputs.publish_to_curseforge == 'true'
+      - name: Publish full package to CurseForge
+        if: >-
+          (github.event_name == 'push' || inputs.publish == true) &&
+          steps.properties.outputs.publish_to_curseforge == 'true'
         env:
           CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
         run: ./gradlew curseforge -PcosmicNativeBundleDir="${{ github.workspace }}/cosmic-natives"
 
-      - name: Publish to Modrinth
-        if: github.event_name == 'push' && steps.properties.outputs.publish_to_modrinth == 'true'
+      - name: Publish full package to Modrinth
+        if: >-
+          (github.event_name == 'push' || inputs.publish == true) &&
+          steps.properties.outputs.publish_to_modrinth == 'true'
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
         run: ./gradlew modrinth -PcosmicNativeBundleDir="${{ github.workspace }}/cosmic-natives"

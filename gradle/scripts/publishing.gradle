@@ -21,6 +21,17 @@ if (propertyBool('publish_to_maven')) {
                 setGroupId(propertyString('root_package'))// Publish with root package as maven group
                 setArtifactId(propertyString('mod_id')) // Publish artifacts with mod id as the artifact id
 
+                // Keep the historical unclassified artifact from components.java for compatibility,
+                // and publish the explicit distributions alongside it for modular installations.
+                artifact(tasks.fullJar)
+                artifact(tasks.coreJar)
+                artifact(tasks.resourcesJar) {
+                    classifier = 'resources'
+                }
+                artifact(tasks.skiaJar) {
+                    classifier = 'skia'
+                }
+
                 // Custom artifact:
                 // If you want to publish a different artifact to the one outputted when building normally
                 // Create a different gradle task (Jar task), in extra.gradle
@@ -51,7 +62,7 @@ if (propertyBool('publish_to_curseforge')) {
                 changelog = parserChangelog()
                 changelogType = 'markdown'
             }
-            mainArtifact tasks.reobfJar.archiveFile.get().asFile, {
+            mainArtifact tasks.fullJar.archiveFile.get().asFile, {
                 displayName = "${propertyString('mod_name')} ${propertyString('mod_version')}"
                 if (propertyBool('use_mixins')) {
                     relations {
@@ -69,6 +80,9 @@ if (propertyBool('publish_to_curseforge')) {
             }
         }
     }
+    tasks.matching { it.name == 'curseforge' }.configureEach {
+        dependsOn tasks.fullJar
+    }
 }
 
 // Documentation here: https://github.com/modrinth/minotaur
@@ -82,7 +96,7 @@ if (propertyBool('publish_to_modrinth')) {
         projectId = propertyString('modrinth_project_id')
         versionNumber = propertyString('mod_version')
         versionType = propertyString('release_type')
-        uploadFile = tasks.reobfJar
+        uploadFile = tasks.fullJar
         gameVersions = ['1.12.2']
         loaders = ['forge']
         debugMode = propertyBool('modrinth_debug')
@@ -103,5 +117,8 @@ if (propertyBool('publish_to_modrinth')) {
             syncBodyFrom = file('README.md').text
             tasks.modrinth.dependsOn(tasks.modrinthSyncBody)
         }
+    }
+    tasks.matching { it.name == 'modrinth' }.configureEach {
+        dependsOn tasks.fullJar
     }
 }

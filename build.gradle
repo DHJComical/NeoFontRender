@@ -506,7 +506,7 @@ tasks.register('skiaJar', Zip) {
 
 tasks.register('packageVariants') {
     group = 'build'
-    description = 'Builds both the full and core distribution jars.'
+    description = 'Builds the full, core, resources, and Skia distribution jars.'
     dependsOn 'fullJar', 'coreJar', 'resourcesJar', 'skiaJar'
 }
 
