@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.2]
+
+- Fix Cosmic face overrides so resolved regular, bold, italic, and bold italic faces are used during actual layout.
+- Allow the font picker to fill every font selector field in the GUI, including fallback and Cosmic override fields.
+
 ## [0.3.1]
 
 - Improve Cosmic font family and face selection, including regular, bold, italic, and bold italic overrides.

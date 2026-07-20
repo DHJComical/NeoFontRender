@@ -30,6 +30,7 @@ public final class CosmicSmokeTest {
                 "neofontrender:fonts/noto_color_emoji_regular.ttf"
         };
         long engine = CosmicNative.createEngine(suppliedFonts, suppliedAliases, primaryFamily,
+                new String[0],
                 "", "", "", "",
                 false,
                 9.0F, Locale.getDefault().toLanguageTag());
@@ -85,6 +86,7 @@ public final class CosmicSmokeTest {
             if (!systemOnly) {
                 long emojiEngine = CosmicNative.createEngine(new byte[][] {emojiFont},
                         new String[] {"neofontrender:fonts/noto_color_emoji_regular.ttf"}, "",
+                        new String[0],
                         "", "", "", "",
                         false,
                         9.0F, Locale.getDefault().toLanguageTag());
