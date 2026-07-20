@@ -1,3 +1,5 @@
+import java.util.zip.ZipFile
+
 // Neo Font Render additions on top of the GTNH convention build:
 //  - unpacks `embed` dependencies (night-config, Skija) into the mod jar
 //  - builds the cosmic-text JNI native with cargo and injects it into resources
@@ -100,4 +102,119 @@ tasks.register('skijaEmojiTest', JavaExec) {
     })
     mainClass.set('neofontrender.core.font.skia.SkijaEmojiTest')
     args file("${buildDir}/skija-debug").absolutePath
+}
+
+// ---------------------------------------------------------------------------
+// Distribution variants consumed by the release workflows
+// ---------------------------------------------------------------------------
+def packagedJar = tasks.named('reobfJar')
+def distributionVersion = project.version.toString()
+def distributionTokens = providers.provider {
+    [
+            modId          : providers.gradleProperty('modId').get(),
+            modName        : providers.gradleProperty('modName').get(),
+            modVersion     : distributionVersion,
+            minecraftVersion: providers.gradleProperty('minecraftVersion').get()
+    ]
+}
+
+tasks.register('fullJar', Zip) {
+    group = 'build'
+    description = 'Packages the complete mod with bundled fonts and all rendering runtimes.'
+    dependsOn packagedJar
+    archiveBaseName.set(providers.gradleProperty('modId'))
+    archiveVersion.set(distributionVersion)
+    archiveClassifier.set('full')
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) })
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('coreJar', Zip) {
+    group = 'build'
+    description = 'Packages Cosmic/AWT/vanilla rendering without bundled fonts or Skija binaries.'
+    dependsOn packagedJar
+    archiveBaseName.set(providers.gradleProperty('modId'))
+    archiveVersion.set(distributionVersion)
+    archiveClassifier.set('core')
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) }) {
+        exclude 'mcmod.info'
+        exclude 'io/github/humbleui/**'
+        exclude 'META-INF/versions/**/io/github/humbleui/**'
+        exclude 'META-INF/maven/io.github.humbleui/**'
+        exclude 'assets/neofontrender/fonts/*.ttf'
+        exclude 'neofontrender/resources/NeoFontRenderResources.class'
+        exclude 'neofontrender/skia/NeoFontRenderSkia.class'
+    }
+    from('src/corePack/resources') {
+        expand(distributionTokens.get())
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    doLast {
+        def forbidden = []
+        new ZipFile(archiveFile.get().asFile).withCloseable { archive ->
+            archive.entries().each { entry ->
+                def name = entry.name
+                if (name.startsWith('io/github/humbleui/')
+                        || (name.startsWith('META-INF/versions/') && name.contains('/io/github/humbleui/'))
+                        || (name.startsWith('assets/neofontrender/fonts/') && name.endsWith('.ttf'))
+                        || name == 'neofontrender/resources/NeoFontRenderResources.class'
+                        || name == 'neofontrender/skia/NeoFontRenderSkia.class') {
+                    forbidden.add(name)
+                }
+            }
+        }
+        if (!forbidden.empty) {
+            throw new GradleException("Core package still contains excluded Skija/font entries: ${forbidden}")
+        }
+    }
+}
+
+tasks.register('resourcesJar', Zip) {
+    group = 'build'
+    description = 'Packages the bundled fonts as a standalone Forge resource mod.'
+    dependsOn packagedJar
+    archiveBaseName.set(providers.gradleProperty('modId').map { "${it}-resources" })
+    archiveVersion.set(distributionVersion)
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) }) {
+        include 'assets/neofontrender/fonts/**'
+        include 'neofontrender/resources/NeoFontRenderResources.class'
+    }
+    from('src/resourcePack/resources') {
+        expand(distributionTokens.get())
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('skiaJar', Zip) {
+    group = 'build'
+    description = 'Packages Skija APIs and native libraries as a standalone optional Forge mod.'
+    dependsOn packagedJar
+    archiveBaseName.set(providers.gradleProperty('modId').map { "${it}-skia" })
+    archiveVersion.set(distributionVersion)
+    archiveExtension.set('jar')
+    destinationDirectory.set(layout.buildDirectory.dir('libs'))
+    from({ zipTree(packagedJar.get().archiveFile.get().asFile) }) {
+        include 'io/github/humbleui/**'
+        include 'META-INF/versions/**/io/github/humbleui/**'
+        include 'META-INF/maven/io.github.humbleui/**'
+        include 'assets/neofontrender/natives/**'
+        include 'neofontrender/skia/NeoFontRenderSkia.class'
+    }
+    from('src/skiaPack/resources') {
+        expand(distributionTokens.get())
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('packageVariants') {
+    group = 'build'
+    description = 'Builds the full, core, resources, and Skia distribution jars.'
+    dependsOn 'fullJar', 'coreJar', 'resourcesJar', 'skiaJar'
 }
