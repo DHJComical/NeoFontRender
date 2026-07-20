@@ -34,14 +34,40 @@ jobs:
             target: x86_64-pc-windows-msvc
             resource: windows-x86_64
             library: neofontrender_cosmic.dll
+          - runner: windows-latest
+            target: aarch64-pc-windows-msvc
+            resource: windows-aarch64
+            library: neofontrender_cosmic.dll
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            resource: linux-x86_64
+            resource: linux-x86_64-gnu
             library: libneofontrender_cosmic.so
+            libc: gnu
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            resource: linux-x86_64-musl
+            library: libneofontrender_cosmic.so
+            libc: musl
           - runner: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            resource: linux-aarch64
+            resource: linux-aarch64-gnu
             library: libneofontrender_cosmic.so
+            libc: gnu
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            resource: linux-aarch64-musl
+            library: libneofontrender_cosmic.so
+            libc: musl
+          - runner: ubuntu-latest
+            target: loongarch64-unknown-linux-gnu
+            resource: linux-loongarch64-gnu
+            library: libneofontrender_cosmic.so
+            libc: gnu
+          - runner: ubuntu-latest
+            target: loongarch64-unknown-linux-musl
+            resource: linux-loongarch64-musl
+            library: libneofontrender_cosmic.so
+            libc: musl
           - runner: macos-15-intel
             target: x86_64-apple-darwin
             resource: macos-x86_64
@@ -66,24 +92,49 @@ jobs:
           workspaces: native/cosmic-text
           key: ${{ matrix.target }}
 
-      - name: Install Linux ARM64 linker
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install cross
+        if: contains(matrix.target, 'linux')
+        run: >-
+          cargo install cross
+          --git https://github.com/cross-rs/cross
+          --rev 154b4ead7e639c7597d9e4e626b9c1c1e37608c0
+          --locked
 
       - name: Build native library
         shell: bash
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: |
           set -euo pipefail
-          cargo build \
-            --manifest-path native/cosmic-text/Cargo.toml \
-            --release \
-            --locked \
-            --target "${{ matrix.target }}"
+          if [[ "${{ matrix.target }}" == *-linux-* ]]; then
+            if [[ "${{ matrix.libc }}" == "musl" ]]; then
+              export RUSTFLAGS="-C target-feature=-crt-static"
+            fi
+            cross build \
+              --manifest-path native/cosmic-text/Cargo.toml \
+              --release \
+              --locked \
+              --target "${{ matrix.target }}"
+          else
+            cargo build \
+              --manifest-path native/cosmic-text/Cargo.toml \
+              --release \
+              --locked \
+              --target "${{ matrix.target }}"
+          fi
           mkdir -p "dist/${{ matrix.resource }}"
           cp "native/cosmic-text/target/${{ matrix.target }}/release/${{ matrix.library }}" \
             "dist/${{ matrix.resource }}/${{ matrix.library }}"
+
+      - name: Verify Linux libc linkage
+        if: contains(matrix.target, 'linux')
+        shell: bash
+        run: |
+          set -euo pipefail
+          library="dist/${{ matrix.resource }}/${{ matrix.library }}"
+          dynamic="$(readelf -d "$library")"
+          if [[ "${{ matrix.libc }}" == "musl" ]] && grep -Eq 'libc\.so\.6|ld-linux' <<<"$dynamic"; then
+            echo "musl native unexpectedly depends on glibc" >&2
+            exit 1
+          fi
 
       - name: Upload native library
         uses: actions/upload-artifact@v4
@@ -140,8 +191,13 @@ jobs:
           set -euo pipefail
           expected=(
             windows-x86_64/neofontrender_cosmic.dll
-            linux-x86_64/libneofontrender_cosmic.so
-            linux-aarch64/libneofontrender_cosmic.so
+            windows-aarch64/neofontrender_cosmic.dll
+            linux-x86_64-gnu/libneofontrender_cosmic.so
+            linux-x86_64-musl/libneofontrender_cosmic.so
+            linux-aarch64-gnu/libneofontrender_cosmic.so
+            linux-aarch64-musl/libneofontrender_cosmic.so
+            linux-loongarch64-gnu/libneofontrender_cosmic.so
+            linux-loongarch64-musl/libneofontrender_cosmic.so
             macos-x86_64/libneofontrender_cosmic.dylib
             macos-aarch64/libneofontrender_cosmic.dylib
           )
@@ -173,12 +229,21 @@ jobs:
           core_entries="$(jar tf "$core")"
           for entry in \
             assets/neofontrender/natives/windows-x86_64/neofontrender_cosmic.dll \
-            assets/neofontrender/natives/linux-x86_64/libneofontrender_cosmic.so \
-            assets/neofontrender/natives/linux-aarch64/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/windows-aarch64/neofontrender_cosmic.dll \
+            assets/neofontrender/natives/linux-x86_64-gnu/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/linux-x86_64-musl/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/linux-aarch64-gnu/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/linux-aarch64-musl/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/linux-loongarch64-gnu/libneofontrender_cosmic.so \
+            assets/neofontrender/natives/linux-loongarch64-musl/libneofontrender_cosmic.so \
             assets/neofontrender/natives/macos-x86_64/libneofontrender_cosmic.dylib \
             assets/neofontrender/natives/macos-aarch64/libneofontrender_cosmic.dylib; do
             grep -Fxq "$entry" <<<"$full_entries" || {
               echo "Full JAR is missing $entry" >&2
+              exit 1
+            }
+            grep -Fxq "$entry" <<<"$core_entries" || {
+              echo "Core JAR is missing $entry" >&2
               exit 1
             }
           done

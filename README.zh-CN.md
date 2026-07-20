@@ -126,6 +126,13 @@ fractionalMetrics = true
 # 是否总是把内置字体，例如 Noto Color Emoji，追加到 fallback 链里。
 builtinFallbacks = true
 
+[font.cosmic]
+# 可选的 Cosmic 字体变体覆盖。留空时根据 font.name 自动选择。
+regular = ""
+bold = ""
+italic = ""
+boldItalic = ""
+
 # 文字阴影设置。
 [shadow]
 # 阴影偏移距离，单位像素。
@@ -176,6 +183,8 @@ imeInput = false
 
 - `rendering.engine` 支持 `vanilla`、`sfr`、`skia`、`cosmic`；新安装默认使用 `cosmic`
 - `font.builtinFallbacks = true` 会把内置字体，例如 Noto Color Emoji，追加到 fallback 链尾部
+- Cosmic 会把 `MiSans Demibold` 解析为 `MiSans` family 和 600 字重。主列表隐藏 `MiSans Bold` 等变体，只有需要显式覆盖时才使用 `font.cosmic.*`。
+- 可变字体支持 `wght` 轴和命名字重实例，其他轴目前使用字体默认值。
 - `input.allowSignPaste` 目前故意只提供配置文件开关
 - `debug.imeInput = true` 适合排查 IME / emoji 输入问题
 
@@ -243,6 +252,12 @@ allowSignPaste = true
 ```bash
 ./gradlew build
 ```
+
+`Build and Deploy` 会为 Windows x86_64/ARM64，以及 Linux x86_64、AArch64、LoongArch64
+分别构建对应的 Cosmic native；Linux 同时提供 GNU/glibc 与 musl 版本，通用包会在运行时
+自动选择对应架构与 libc。本地使用预编译集合时传入
+`-PcosmicNativeBundleDir=/path/to/cosmic-natives`。Linux 单机编译默认标记为 GNU；
+在 musl 主机编译时请添加 `-PcosmicLinuxLibc=musl`。
 
 ## 运行
 

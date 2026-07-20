@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1]
+
+- Improve Cosmic font family and face selection, including regular, bold, italic, and bold italic overrides.
+- Add an option for non-regular Cosmic overrides to switch fonts without additionally applying bold or italic styling.
+- Support variable-font weight selection and named weight instances.
+- Hide installed font style variants from the default family list.
+- Ship Windows x86_64/ARM64 and separate GNU/glibc and musl Cosmic natives for Linux x86_64, AArch64, and LoongArch64.
+
 ## [0.3.0]
 
 - Allow the Core package to use system fonts and system emoji when optional resource fonts are not installed.

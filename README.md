@@ -122,6 +122,13 @@ fractionalMetrics = true
 # Always append bundled fonts, such as Noto Color Emoji, to the fallback family.
 builtinFallbacks = true
 
+[font.cosmic]
+# Optional face overrides. Leave empty to derive variants from font.name.
+regular = ""
+bold = ""
+italic = ""
+boldItalic = ""
+
 # Text shadow rendering options.
 [shadow]
 # Shadow offset distance in pixels.
@@ -172,6 +179,8 @@ Practical notes:
 
 - `rendering.engine` supports `vanilla`, `sfr`, and `skia`
 - `font.builtinFallbacks = true` appends bundled fonts such as Noto Color Emoji to the fallback chain
+- Cosmic resolves `MiSans Demibold` as family `MiSans` at weight 600. The main list hides exposed variants such as `MiSans Bold`; use `font.cosmic.*` only for explicit overrides.
+- Variable fonts support the `wght` axis and named weight instances; other axes currently use their font defaults.
 - `input.allowSignPaste` is intentionally config-file only
 - `debug.imeInput = true` can help diagnose IME / emoji input issues
 
@@ -252,6 +261,12 @@ This project uses CleanroomMC's TemplateDevEnv with RetroFuturaGradle.
 ```bash
 ./gradlew build
 ```
+
+`Build and Deploy` produces Cosmic natives for Windows x86_64/ARM64 and for x86_64,
+AArch64, and LoongArch64 Linux, with separate GNU/glibc and musl builds.
+Universal packages select the matching architecture and libc at runtime.
+For a local prebuilt bundle, pass `-PcosmicNativeBundleDir=/path/to/cosmic-natives`.
+Linux host-only builds default to GNU; use `-PcosmicLinuxLibc=musl` when building on a musl host.
 
 ## Running
 

@@ -2,9 +2,11 @@ package neofontrender.core.font.cosmic;
 
 import neofontrender.NeoFontRender;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -66,19 +68,56 @@ public final class CosmicRuntimeSupport {
             normalizedArch = "x86_64";
         } else if (arch.equals("aarch64") || arch.equals("arm64")) {
             normalizedArch = "aarch64";
+        } else if (arch.equals("loongarch64") || arch.equals("loong64")) {
+            normalizedArch = "loongarch64";
         } else {
             return null;
         }
-        if (os.contains("win") && normalizedArch.equals("x86_64")) {
-            return new Platform("windows-x86_64", "neofontrender_cosmic.dll");
+        if (os.contains("win")) {
+            return new Platform("windows-" + normalizedArch, "neofontrender_cosmic.dll");
         }
         if (os.contains("linux")) {
-            return new Platform("linux-" + normalizedArch, "libneofontrender_cosmic.so");
+            return new Platform("linux-" + normalizedArch + "-" + detectLinuxLibc(normalizedArch),
+                    "libneofontrender_cosmic.so");
         }
         if (os.contains("mac") || os.contains("darwin")) {
             return new Platform("macos-" + normalizedArch, "libneofontrender_cosmic.dylib");
         }
         return null;
+    }
+
+    private static String detectLinuxLibc(String arch) {
+        String override = System.getProperty("neofontrender.linuxLibc", "").trim().toLowerCase(Locale.ROOT);
+        if ("musl".equals(override)) {
+            return "musl";
+        }
+        if ("gnu".equals(override) || "glibc".equals(override)) {
+            return "gnu";
+        }
+
+        Path maps = Paths.get("/proc/self/maps");
+        if (Files.isRegularFile(maps)) {
+            try (BufferedReader reader = Files.newBufferedReader(maps, StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String lower = line.toLowerCase(Locale.ROOT);
+                    if (lower.contains("ld-musl-") || lower.contains("libc.musl-")) {
+                        return "musl";
+                    }
+                }
+            } catch (IOException ignored) {
+                // Fall through to loader probing.
+            }
+        }
+
+        String loaderArch = "aarch64".equals(arch) ? "aarch64"
+                : "loongarch64".equals(arch) ? "loongarch64" : "x86_64";
+        for (String directory : new String[]{"/lib", "/usr/lib", "/lib64", "/usr/lib64"}) {
+            if (Files.isRegularFile(Paths.get(directory, "ld-musl-" + loaderArch + ".so.1"))) {
+                return "musl";
+            }
+        }
+        return "gnu";
     }
 
     private static byte[] readResource(String path) throws IOException {

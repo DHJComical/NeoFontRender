@@ -25,13 +25,21 @@ public final class CosmicSmokeTest {
                 ? Files.readAllBytes(Paths.get(args[1]))
                 : readResource("/assets/neofontrender/fonts/noto_color_emoji_regular.ttf");
         byte[][] suppliedFonts = systemOnly ? new byte[0][] : new byte[][] {font, emojiFont};
-        long engine = CosmicNative.createEngine(suppliedFonts, primaryFamily,
+        String[] suppliedAliases = systemOnly ? new String[0] : new String[] {
+                "neofontrender:fonts/sarasa_ui_sc_regular.ttf",
+                "neofontrender:fonts/noto_color_emoji_regular.ttf"
+        };
+        long engine = CosmicNative.createEngine(suppliedFonts, suppliedAliases, primaryFamily,
+                "", "", "", "",
+                false,
                 9.0F, Locale.getDefault().toLanguageTag());
         try {
             String resolvedFamily = CosmicNative.primaryFamily(engine);
-            if (!primaryFamily.isEmpty() && !normalizeFamily(resolvedFamily).equals(normalizeFamily(primaryFamily))) {
+            String resolvedFace = CosmicNative.resolvedFace(engine, 0).split("\\|", 2)[0];
+            if (!primaryFamily.isEmpty()
+                    && !normalizeFamily(resolvedFace).startsWith(normalizeFamily(primaryFamily))) {
                 throw new IllegalStateException("requested primary family '" + primaryFamily
-                        + "' resolved to '" + resolvedFamily + "'");
+                        + "' resolved to '" + resolvedFace + "' in family '" + resolvedFamily + "'");
             }
             String sample = "Cosmic 中文 العربية";
             float width = CosmicNative.measure(engine, sample, 0);
@@ -65,13 +73,20 @@ public final class CosmicSmokeTest {
             }
             assertTransparentBorder(raster);
             System.out.println("Cosmic smoke test: family=" + CosmicNative.primaryFamily(engine)
+                    + ", faces=[" + CosmicNative.resolvedFace(engine, 0)
+                    + ", " + CosmicNative.resolvedFace(engine, 1)
+                    + ", " + CosmicNative.resolvedFace(engine, 2)
+                    + ", " + CosmicNative.resolvedFace(engine, 3) + "]"
                     + ", advance=" + width + ", baseline=" + baseline + ", raster=" + pixelWidth + "x" + pixelHeight);
             byte[] emojiRaster = CosmicNative.render(engine, "A\uD83D\uDE00\u2764\uFE0F\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66", 0xFFFFFFFF, 0, 2.0F);
             assertTransparentBorder(emojiRaster);
             boolean fallbackChromatic = hasChromaticPixels(emojiRaster);
             boolean primaryChromatic = fallbackChromatic;
             if (!systemOnly) {
-                long emojiEngine = CosmicNative.createEngine(new byte[][] {emojiFont}, "",
+                long emojiEngine = CosmicNative.createEngine(new byte[][] {emojiFont},
+                        new String[] {"neofontrender:fonts/noto_color_emoji_regular.ttf"}, "",
+                        "", "", "", "",
+                        false,
                         9.0F, Locale.getDefault().toLanguageTag());
                 try {
                     primaryChromatic = hasChromaticPixels(CosmicNative.render(

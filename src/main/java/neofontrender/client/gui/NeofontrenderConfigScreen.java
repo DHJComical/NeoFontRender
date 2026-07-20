@@ -420,12 +420,48 @@ public final class NeofontrenderConfigScreen {
     private static List<String> localFonts() {
         try {
             String[] names = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames(Locale.ROOT);
-            List<String> fonts = new ArrayList<>(Arrays.asList(names));
+            Set<String> installed = new LinkedHashSet<>();
+            for (String name : names) {
+                installed.add(name.toLowerCase(Locale.ROOT));
+            }
+            List<String> fonts = new ArrayList<>();
+            for (String name : names) {
+                if (!isExposedStyleFamily(name, installed)) {
+                    fonts.add(name);
+                }
+            }
             Collections.sort(fonts, String.CASE_INSENSITIVE_ORDER);
             return fonts;
         } catch (Throwable t) {
             return Collections.singletonList("SansSerif");
         }
+    }
+
+    private static boolean isExposedStyleFamily(String name, Set<String> installedFamilies) {
+        String candidate = name;
+        boolean stripped = false;
+        String[] suffixes = {
+                " Extra Bold", " ExtraBold", " Demi Bold", " DemiBold",
+                " Semi Bold", " SemiBold", " Extra Light", " ExtraLight",
+                " Bold Italic", " Bold Oblique", " Italic", " Oblique",
+                " Regular", " Normal", " Medium", " Semilight", " DemiLight",
+                " Light", " Thin", " Bold", " Heavy", " Black"
+        };
+        boolean changed;
+        do {
+            changed = false;
+            for (String suffix : suffixes) {
+                if (candidate.length() > suffix.length()
+                        && candidate.regionMatches(true, candidate.length() - suffix.length(),
+                        suffix, 0, suffix.length())) {
+                    candidate = candidate.substring(0, candidate.length() - suffix.length()).trim();
+                    stripped = true;
+                    changed = true;
+                    break;
+                }
+            }
+        } while (changed);
+        return stripped && installedFamilies.contains(candidate.toLowerCase(Locale.ROOT));
     }
 
     private static List<FontEntry> fontFolderFonts() {
@@ -444,7 +480,7 @@ public final class NeofontrenderConfigScreen {
 
     private static boolean isFontFile(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
-        return lower.endsWith(".ttf") || lower.endsWith(".otf");
+        return lower.endsWith(".ttf") || lower.endsWith(".otf") || lower.endsWith(".ttc");
     }
 
     private static List<FontEntry> builtinFonts() {
@@ -536,6 +572,11 @@ public final class NeofontrenderConfigScreen {
             this.settings = new SettingsPane(staged, fontNameField, fontPathField);
             this.settingsScroll = new ScrollWidget<>(new VerticalScrollData());
             this.settingsScroll.child(settings);
+            // A live font reload can schedule another ModularUI resize after the manual layout
+            // pass. Without persistent X-axis constraints, the scroll child then falls back to
+            // covering its text children and can collapse to a very narrow column for fonts with
+            // unusual metrics. Keep its width tied to the viewport across every resize pass.
+            this.settings.relativeToParent().left(0).top(0).widthRelOffset(1.0F, -6);
             this.categoryRail = new CategoryRail(staged, PAGE_FONT);
             this.previewButton = actionButtonKey("neofontrender.gui.button.preview", 90, 20, () -> preview(staged));
             this.applyButton = actionButtonKey("neofontrender.gui.button.apply", 74, 20, () -> {
@@ -635,6 +676,9 @@ public final class NeofontrenderConfigScreen {
                 this.contentRoot.child(brightness);
             }
             this.contentScroll.child(contentRoot);
+            // Apply the same persistent viewport-width constraint used by the font settings page.
+            // Advanced pages also remain open while preview reloads the active font backend.
+            this.contentRoot.relativeToParent().left(0).top(0).fullWidth();
             this.backButton = actionButtonKey("neofontrender.gui.button.back", 80, 20, () -> openMain(staged));
             this.applyButton = actionButtonKey("neofontrender.gui.button.apply", 80, 20, () -> {
                 apply(staged);
@@ -790,14 +834,21 @@ public final class NeofontrenderConfigScreen {
     }
 
     private static final class SettingsPane extends ParentWidget<SettingsPane> implements ILayoutWidget {
+        private final Staged staged;
         private final FieldBlock fontName;
         private final FieldBlock fontPath;
         private final FieldBlock fallbacks;
+        private final FieldBlock cosmicRegular;
+        private final FieldBlock cosmicBold;
+        private final FieldBlock cosmicItalic;
+        private final FieldBlock cosmicBoldItalic;
+        private final ButtonWidget<?> cosmicVariantFontOnly;
         private final MetricsSection metrics;
         private final OversampleSection oversample;
         private final PreviewWidget preview;
 
         private SettingsPane(Staged staged, TextFieldWidget[] fontNameField, TextFieldWidget[] fontPathField) {
+            this.staged = staged;
             fontNameField[0] = new TextFieldWidget()
                     .setMaxLength(256)
                     .value(new StringValue(() -> staged.fontName, v -> staged.fontName = v));
@@ -810,6 +861,27 @@ public final class NeofontrenderConfigScreen {
             this.fallbacks = new FieldBlock(tr("neofontrender.gui.label.fallbacks"), new TextFieldWidget()
                     .setMaxLength(512)
                     .value(new StringValue(() -> staged.fontFallbacks, v -> staged.fontFallbacks = v)));
+            this.cosmicRegular = cosmicFaceField(
+                    "neofontrender.gui.label.cosmic_regular", () -> staged.cosmicRegular, v -> staged.cosmicRegular = v);
+            this.cosmicBold = cosmicFaceField(
+                    "neofontrender.gui.label.cosmic_bold", () -> staged.cosmicBold, v -> staged.cosmicBold = v);
+            this.cosmicItalic = cosmicFaceField(
+                    "neofontrender.gui.label.cosmic_italic", () -> staged.cosmicItalic, v -> staged.cosmicItalic = v);
+            this.cosmicBoldItalic = cosmicFaceField(
+                    "neofontrender.gui.label.cosmic_bold_italic", () -> staged.cosmicBoldItalic, v -> staged.cosmicBoldItalic = v);
+            this.cosmicVariantFontOnly = toggleButtonKey(
+                    "neofontrender.gui.option.cosmic_variant_font_only",
+                    "neofontrender.tooltip.cosmic_variant_font_only",
+                    260, 24,
+                    () -> staged.cosmicVariantOverridesOnlySwitchFont,
+                    v -> staged.cosmicVariantOverridesOnlySwitchFont = v,
+                    () -> preview(staged));
+            boolean cosmic = "cosmic".equals(normalizeEngine(staged.engine));
+            this.cosmicRegular.setEnabled(cosmic);
+            this.cosmicBold.setEnabled(cosmic);
+            this.cosmicItalic.setEnabled(cosmic);
+            this.cosmicBoldItalic.setEnabled(cosmic);
+            this.cosmicVariantFontOnly.setEnabled(cosmic);
             this.metrics = new MetricsSection(staged);
             this.oversample = new OversampleSection(staged);
             this.preview = new PreviewWidget(staged);
@@ -817,13 +889,20 @@ public final class NeofontrenderConfigScreen {
             child(fontName);
             child(fontPath);
             child(fallbacks);
+            child(cosmicRegular);
+            child(cosmicBold);
+            child(cosmicItalic);
+            child(cosmicBoldItalic);
+            child(cosmicVariantFontOnly);
             child(metrics);
             child(oversample);
             child(preview);
         }
 
         private int preferredHeight() {
-            return 4 * 46 + 8 + oversample.preferredHeight() + 8 + 150;
+            int cosmicFields = "cosmic".equals(normalizeEngine(staged.engine)) ? 4 : 0;
+            int cosmicOption = cosmicFields == 0 ? 0 : 32;
+            return (4 + cosmicFields) * 46 + cosmicOption + 8 + oversample.preferredHeight() + 8 + 150;
         }
 
         @Override
@@ -840,6 +919,18 @@ public final class NeofontrenderConfigScreen {
             y += fieldHeight + gap;
             place(fallbacks, 0, y, width, fieldHeight);
             y += fieldHeight + gap;
+            if ("cosmic".equals(normalizeEngine(staged.engine))) {
+                place(cosmicRegular, 0, y, width, fieldHeight);
+                y += fieldHeight + gap;
+                place(cosmicBold, 0, y, width, fieldHeight);
+                y += fieldHeight + gap;
+                place(cosmicItalic, 0, y, width, fieldHeight);
+                y += fieldHeight + gap;
+                place(cosmicBoldItalic, 0, y, width, fieldHeight);
+                y += fieldHeight + gap;
+                place(cosmicVariantFontOnly, 0, y, width, 24);
+                y += 24 + gap;
+            }
             place(metrics, 0, y, width, fieldHeight);
             y += fieldHeight + gap;
             int oversampleHeight = oversample.preferredHeight();
@@ -848,6 +939,13 @@ public final class NeofontrenderConfigScreen {
 
             place(preview, 0, y, width, Math.max(0, height - y));
             return true;
+        }
+
+        private static FieldBlock cosmicFaceField(String label, Supplier<String> getter,
+                                                  java.util.function.Consumer<String> setter) {
+            return new FieldBlock(tr(label), new TextFieldWidget()
+                    .setMaxLength(512)
+                    .value(new StringValue(getter, setter)));
         }
     }
 
@@ -1259,6 +1357,12 @@ public final class NeofontrenderConfigScreen {
     private static final class Staged {
         private final boolean originalEnabled = NeofontrenderConfig.enabled();
         private final String originalFontName = NeofontrenderConfig.fontName();
+        private final String originalCosmicRegular = NeofontrenderConfig.cosmicRegularFont();
+        private final String originalCosmicBold = NeofontrenderConfig.cosmicBoldFont();
+        private final String originalCosmicItalic = NeofontrenderConfig.cosmicItalicFont();
+        private final String originalCosmicBoldItalic = NeofontrenderConfig.cosmicBoldItalicFont();
+        private final boolean originalCosmicVariantOverridesOnlySwitchFont =
+                NeofontrenderConfig.cosmicVariantOverridesOnlySwitchFont();
         private final int originalFontStyle = NeofontrenderConfig.fontStyle();
         private final String originalFontSize = Float.toString(NeofontrenderConfig.fontSize());
         private final String originalOversample = Float.toString(NeofontrenderConfig.fontOversample());
@@ -1319,7 +1423,12 @@ public final class NeofontrenderConfigScreen {
         private String brightness = originalBrightness;
         private boolean textureEdgeBleed = originalTextureEdgeBleed;
         private String fontName = originalFontName;
-        private String fontPath = originalFontName.endsWith(".ttf") || originalFontName.endsWith(".otf") ? originalFontName : "";
+        private String fontPath = isFontFile(originalFontName) ? originalFontName : "";
+        private String cosmicRegular = originalCosmicRegular;
+        private String cosmicBold = originalCosmicBold;
+        private String cosmicItalic = originalCosmicItalic;
+        private String cosmicBoldItalic = originalCosmicBoldItalic;
+        private boolean cosmicVariantOverridesOnlySwitchFont = originalCosmicVariantOverridesOnlySwitchFont;
         private String fontFallbacks = originalFontFallbacks;
         private int fontStyle = originalFontStyle;
         private String fontSize = originalFontSize;
@@ -1383,6 +1492,11 @@ public final class NeofontrenderConfigScreen {
                     ? "neofontrender:fonts/sarasa_ui_sc_regular.ttf"
                     : selectedFont());
             NeofontrenderConfig.setFontFallbacks(parseFonts(fontFallbacks));
+            NeofontrenderConfig.setCosmicRegularFont(cosmicRegular);
+            NeofontrenderConfig.setCosmicBoldFont(cosmicBold);
+            NeofontrenderConfig.setCosmicItalicFont(cosmicItalic);
+            NeofontrenderConfig.setCosmicBoldItalicFont(cosmicBoldItalic);
+            NeofontrenderConfig.setCosmicVariantOverridesOnlySwitchFont(cosmicVariantOverridesOnlySwitchFont);
             NeofontrenderConfig.setFontStyle(fontStyle);
             NeofontrenderConfig.setFontSize(parseFloat(fontSize, 10.0F, 4.0F, 64.0F));
             NeofontrenderConfig.setFontOversample(parseFloat(oversample, 8.0F, 1.0F, 16.0F));
@@ -1428,6 +1542,12 @@ public final class NeofontrenderConfigScreen {
             NeofontrenderConfig.setTextureEdgeBleed(originalTextureEdgeBleed);
             NeofontrenderConfig.setFontName(originalFontName);
             NeofontrenderConfig.setFontFallbacks(parseFonts(originalFontFallbacks));
+            NeofontrenderConfig.setCosmicRegularFont(originalCosmicRegular);
+            NeofontrenderConfig.setCosmicBoldFont(originalCosmicBold);
+            NeofontrenderConfig.setCosmicItalicFont(originalCosmicItalic);
+            NeofontrenderConfig.setCosmicBoldItalicFont(originalCosmicBoldItalic);
+            NeofontrenderConfig.setCosmicVariantOverridesOnlySwitchFont(
+                    originalCosmicVariantOverridesOnlySwitchFont);
             NeofontrenderConfig.setFontStyle(originalFontStyle);
             NeofontrenderConfig.setFontSize(parseFloat(originalFontSize, 8.0F, 4.0F, 64.0F));
             NeofontrenderConfig.setFontOversample(parseFloat(originalOversample, 8.0F, 1.0F, 16.0F));

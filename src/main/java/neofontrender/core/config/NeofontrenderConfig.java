@@ -73,6 +73,31 @@ public final class NeofontrenderConfig {
         return config.getOrElse("font.style", 0);
     }
 
+    public static String cosmicRegularFont() {
+        return normalizeFontLocation(config.getOrElse("font.cosmic.regular", ""));
+    }
+
+    public static String cosmicBoldFont() {
+        return normalizeFontLocation(config.getOrElse("font.cosmic.bold", ""));
+    }
+
+    public static String cosmicItalicFont() {
+        return normalizeFontLocation(config.getOrElse("font.cosmic.italic", ""));
+    }
+
+    public static String cosmicBoldItalicFont() {
+        return normalizeFontLocation(config.getOrElse("font.cosmic.boldItalic", ""));
+    }
+
+    public static boolean cosmicVariantOverridesOnlySwitchFont() {
+        return config.getOrElse("font.cosmic.variantOverridesOnlySwitchFont", false);
+    }
+
+    public static List<String> cosmicFaceOverrides() {
+        return Collections.unmodifiableList(Arrays.asList(
+                cosmicRegularFont(), cosmicBoldFont(), cosmicItalicFont(), cosmicBoldItalicFont()));
+    }
+
     public static float fontSize() {
         return getFloat("font.size", 10.0f);
     }
@@ -443,6 +468,26 @@ public final class NeofontrenderConfig {
         config.set("font.style", value);
     }
 
+    public static void setCosmicRegularFont(String value) {
+        config.set("font.cosmic.regular", value == null ? "" : value.trim());
+    }
+
+    public static void setCosmicBoldFont(String value) {
+        config.set("font.cosmic.bold", value == null ? "" : value.trim());
+    }
+
+    public static void setCosmicItalicFont(String value) {
+        config.set("font.cosmic.italic", value == null ? "" : value.trim());
+    }
+
+    public static void setCosmicBoldItalicFont(String value) {
+        config.set("font.cosmic.boldItalic", value == null ? "" : value.trim());
+    }
+
+    public static void setCosmicVariantOverridesOnlySwitchFont(boolean value) {
+        config.set("font.cosmic.variantOverridesOnlySwitchFont", value);
+    }
+
     public static void setFontSize(float value) {
         config.set("font.size", value);
     }
@@ -727,6 +772,13 @@ public final class NeofontrenderConfig {
             w.write("lcdSubpixel = false\n");
             w.write("builtinFallbacks = true\n");
             w.write("\n");
+            w.write("[font.cosmic]\n");
+            w.write("regular = \"\"\n");
+            w.write("bold = \"\"\n");
+            w.write("italic = \"\"\n");
+            w.write("boldItalic = \"\"\n");
+            w.write("variantOverridesOnlySwitchFont = false\n");
+            w.write("\n");
             w.write("[shadow]\n");
             w.write("length = 1.0\n");
             w.write("opacity = 0.25\n");
@@ -815,6 +867,12 @@ public final class NeofontrenderConfig {
         config.setComment("font.fractionalMetrics", "Enable fractional font metrics for more precise positioning.");
         config.setComment("font.lcdSubpixel", "Enable LCD subpixel anti-aliasing in Skia rasterization. Produces sharper text on standard RGB monitors but may show color fringes.");
         config.setComment("font.builtinFallbacks", "Always append bundled fonts, such as Noto Color Emoji, to the fallback family.");
+        config.setComment("font.cosmic", "Optional Cosmic face overrides. Empty values use family and variable-weight auto matching.");
+        config.setComment("font.cosmic.regular", "Cosmic regular face override: system face name, local font path, or resource location.");
+        config.setComment("font.cosmic.bold", "Cosmic bold face override: system face name, local font path, or resource location.");
+        config.setComment("font.cosmic.italic", "Cosmic italic face override: system face name, local font path, or resource location.");
+        config.setComment("font.cosmic.boldItalic", "Cosmic bold-italic face override: system face name, local font path, or resource location.");
+        config.setComment("font.cosmic.variantOverridesOnlySwitchFont", "For non-regular overrides, select the configured font without additionally requesting bold or italic styling. Empty overrides still use automatic family style matching.");
         config.setComment("shadow", "Text shadow rendering options.");
         config.setComment("shadow.length", "Shadow offset distance in pixels.");
         config.setComment("shadow.opacity", "Shadow opacity multiplier (0.0-1.0).");

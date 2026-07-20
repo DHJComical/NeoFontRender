@@ -1,6 +1,6 @@
 [package]
 name = "neofontrender-cosmic"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "swash"] }
 jni = { version = "0.21", default-features = false }
+skrifa = "0.40"
 
 [profile.release]
 opt-level = "z"

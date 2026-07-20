@@ -54,21 +54,37 @@ public final class CosmicTextRenderer implements TextRenderBackend {
 
     public CosmicTextRenderer(TextureManager textureManager, IResourceManager resourceManager) throws IOException {
         this.textureManager = textureManager;
-        List<byte[]> fonts = loadConfiguredFonts(resourceManager);
+        List<LoadedFont> loadedFonts = loadConfiguredFonts(resourceManager);
+        byte[][] fonts = new byte[loadedFonts.size()][];
+        String[] aliases = new String[loadedFonts.size()];
+        for (int i = 0; i < loadedFonts.size(); i++) {
+            aliases[i] = loadedFonts.get(i).alias;
+            fonts[i] = loadedFonts.get(i).data;
+        }
         // The core package intentionally contains no bundled TTF files. cosmic-text/fontdb still
         // loads the operating system font database, so an empty byte-font list is a supported mode
         // and is also what lets the OS-provided color emoji font participate in fallback.
         // Keep the configured family name separate from byte-backed fallback fonts. Skia can
         // resolve a system family such as "JetBrains Mono" directly, while the old Cosmic bridge
         // silently skipped it and promoted the first bundled fallback (usually Sarasa) to primary.
-        engine = CosmicNative.createEngine(fonts.toArray(new byte[0][]), NeofontrenderConfig.fontName(),
+        engine = CosmicNative.createEngine(fonts, aliases, NeofontrenderConfig.fontName(),
+                NeofontrenderConfig.cosmicRegularFont(), NeofontrenderConfig.cosmicBoldFont(),
+                NeofontrenderConfig.cosmicItalicFont(), NeofontrenderConfig.cosmicBoldItalicFont(),
+                NeofontrenderConfig.cosmicVariantOverridesOnlySwitchFont(),
                 NeofontrenderConfig.fontSize(), Locale.getDefault().toLanguageTag());
         if (engine == 0L) {
             throw new IOException("cosmic-text returned a null engine");
         }
         primaryFamily = CosmicNative.primaryFamily(engine);
-        NeoFontRender.LOGGER.info("Cosmic renderer loaded {} font resources; primary family='{}'",
-                fonts.size(), primaryFamily);
+        NeoFontRender.LOGGER.info(
+                "Cosmic renderer loaded {} font resources; primary family='{}'; faces=[regular={}, bold={}, italic={}, boldItalic={}]",
+                loadedFonts.size(), primaryFamily,
+                CosmicNative.resolvedFace(engine, 0), CosmicNative.resolvedFace(engine, 1),
+                CosmicNative.resolvedFace(engine, 2), CosmicNative.resolvedFace(engine, 3));
+        String warnings = CosmicNative.resolutionWarnings(engine);
+        if (warnings != null && !warnings.isEmpty()) {
+            NeoFontRender.LOGGER.warn("Cosmic font resolution warnings:\n{}", warnings);
+        }
     }
 
     @Override
@@ -191,9 +207,20 @@ public final class CosmicTextRenderer implements TextRenderBackend {
                 scale);
     }
 
-    private List<byte[]> loadConfiguredFonts(IResourceManager resourceManager) throws IOException {
-        List<byte[]> fonts = new ArrayList<>();
+    private List<LoadedFont> loadConfiguredFonts(IResourceManager resourceManager) throws IOException {
+        LinkedHashMap<String, Boolean> selectors = new LinkedHashMap<>();
+        selectors.put(NeofontrenderConfig.fontName(), Boolean.TRUE);
+        for (String name : NeofontrenderConfig.cosmicFaceOverrides()) {
+            if (name != null && !name.trim().isEmpty()) {
+                selectors.put(name, Boolean.TRUE);
+            }
+        }
         for (String name : NeofontrenderConfig.fontFamily()) {
+            selectors.put(name, Boolean.TRUE);
+        }
+
+        List<LoadedFont> fonts = new ArrayList<>();
+        for (String name : selectors.keySet()) {
             if (name == null || name.trim().isEmpty()) {
                 continue;
             }
@@ -201,12 +228,12 @@ public final class CosmicTextRenderer implements TextRenderBackend {
                 File file = new File(name);
                 if (file.isFile()) {
                     try (InputStream input = new FileInputStream(file)) {
-                        fonts.add(readAllBytes(input));
+                        fonts.add(new LoadedFont(name, readAllBytes(input)));
                     }
                 } else if (name.indexOf(':') >= 0) {
                     IResource resource = resourceManager.getResource(new ResourceLocation(name));
                     try (InputStream input = resource.getInputStream()) {
-                        fonts.add(readAllBytes(input));
+                        fonts.add(new LoadedFont(name, readAllBytes(input)));
                     }
                 }
             } catch (IOException error) {
@@ -217,6 +244,16 @@ public final class CosmicTextRenderer implements TextRenderBackend {
             }
         }
         return fonts;
+    }
+
+    private static final class LoadedFont {
+        private final String alias;
+        private final byte[] data;
+
+        private LoadedFont(String alias, byte[] data) {
+            this.alias = alias;
+            this.data = data;
+        }
     }
 
     private static byte[] readAllBytes(InputStream input) throws IOException {

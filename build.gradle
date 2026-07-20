@@ -164,10 +164,16 @@ if (propertyBool('use_access_transformer')) {
 def cosmicHostOs = System.getProperty('os.name', '').toLowerCase(Locale.ROOT)
 def cosmicHostArch = System.getProperty('os.arch', '').toLowerCase(Locale.ROOT)
 def cosmicArch = (cosmicHostArch == 'amd64' || cosmicHostArch == 'x86_64') ? 'x86_64'
-        : (cosmicHostArch == 'aarch64' || cosmicHostArch == 'arm64') ? 'aarch64' : 'unsupported'
+        : (cosmicHostArch == 'aarch64' || cosmicHostArch == 'arm64') ? 'aarch64'
+        : (cosmicHostArch == 'loongarch64' || cosmicHostArch == 'loong64') ? 'loongarch64'
+        : 'unsupported'
+def cosmicLinuxLibc = providers.gradleProperty('cosmicLinuxLibc').getOrElse('gnu').toLowerCase(Locale.ROOT)
+if (!(cosmicLinuxLibc in ['gnu', 'musl'])) {
+    throw new GradleException("cosmicLinuxLibc must be 'gnu' or 'musl', got '${cosmicLinuxLibc}'")
+}
 def cosmicPlatform = cosmicHostOs.contains('win') ? "windows-${cosmicArch}"
         : (cosmicHostOs.contains('mac') || cosmicHostOs.contains('darwin')) ? "macos-${cosmicArch}"
-        : cosmicHostOs.contains('linux') ? "linux-${cosmicArch}" : "unsupported-${cosmicArch}"
+        : cosmicHostOs.contains('linux') ? "linux-${cosmicArch}-${cosmicLinuxLibc}" : "unsupported-${cosmicArch}"
 def cosmicLibraryName = cosmicHostOs.contains('win') ? 'neofontrender_cosmic.dll'
         : (cosmicHostOs.contains('mac') || cosmicHostOs.contains('darwin')) ? 'libneofontrender_cosmic.dylib'
         : 'libneofontrender_cosmic.so'
