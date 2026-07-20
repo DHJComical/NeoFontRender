@@ -1,5 +1,6 @@
 package neofontrender.core.font.layout;
 
+import neofontrender.NeoFontRender;
 import neofontrender.core.font.backend.TextRenderResult;
 
 import java.util.Collections;
@@ -75,7 +76,8 @@ public final class TextLayoutCache {
         if (value instanceof AutoCloseable) {
             try {
                 ((AutoCloseable) value).close();
-            } catch (Exception ignored) {
+            } catch (Exception error) {
+                NeoFontRender.LOGGER.warn("Failed to close an evicted text layout", error);
             }
         }
     }

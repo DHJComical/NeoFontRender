@@ -5,8 +5,8 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.inventory.GuiEditSign;
 import net.minecraft.tileentity.TileEntitySign;
 import net.minecraft.util.ChatAllowedCharacters;
-import net.minecraft.util.text.TextComponentString;
 import neofontrender.core.config.NeofontrenderConfig;
+import org.lwjgl.input.Keyboard;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,7 +28,9 @@ public abstract class MixinGuiEditSign {
 
     @Inject(method = "keyTyped", at = @At("HEAD"), cancellable = true)
     private void neofontrender$pasteClipboard(char typedChar, int keyCode, CallbackInfo ci) throws IOException {
-        if (!NeofontrenderConfig.allowSignPaste() || !GuiScreen.isKeyComboCtrlV(keyCode)) {
+        boolean controlDown = Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
+                || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+        if (!NeofontrenderConfig.allowSignPaste() || !controlDown || keyCode != Keyboard.KEY_V) {
             return;
         }
         paste(GuiScreen.getClipboardString());
@@ -90,14 +92,12 @@ public abstract class MixinGuiEditSign {
     }
 
     private String lineText(int line) {
-        if (this.tileSign.signText[line] == null) {
-            return "";
-        }
-        return this.tileSign.signText[line].getUnformattedText();
+        String text = this.tileSign.signText[line];
+        return text == null ? "" : text;
     }
 
     private void setLine(int line, String text) {
-        this.tileSign.signText[line] = new TextComponentString(text);
+        this.tileSign.signText[line] = text;
     }
 
     private static boolean isAllowed(String text) {

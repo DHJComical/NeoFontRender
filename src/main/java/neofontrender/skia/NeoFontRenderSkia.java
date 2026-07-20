@@ -1,6 +1,6 @@
 package neofontrender.skia;
 
-import net.minecraftforge.fml.common.Mod;
+import cpw.mods.fml.common.Mod;
 import neofontrender.Tags;
 
 /**
@@ -14,8 +14,8 @@ import neofontrender.Tags;
         modid = NeoFontRenderSkia.MOD_ID,
         name = "Neo Font Render Skia Runtime",
         version = Tags.VERSION,
-        clientSideOnly = true,
-        acceptedMinecraftVersions = "[1.12,1.13)"
+        acceptedMinecraftVersions = "[1.7.10]",
+        acceptableRemoteVersions = "*"
 )
 public final class NeoFontRenderSkia {
     public static final String MOD_ID = "neofontrender_skia";

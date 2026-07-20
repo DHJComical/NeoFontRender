@@ -26,14 +26,12 @@ import io.github.humbleui.skija.paragraph.DecorationLineStyle;
 import io.github.humbleui.skija.paragraph.DecorationStyle;
 import io.github.humbleui.skija.paragraph.TextStyle;
 import io.github.humbleui.skija.paragraph.TypefaceFontProvider;
-import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureUtil;
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.resources.IResource;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
@@ -60,6 +58,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -658,7 +657,7 @@ public final class SkijaTextRenderer implements TextRenderBackend {
             // TextureManager registration may apply the global interpolation setting. Shared GUI
             // text must retain vanilla-style nearest sampling; linear filtering merges the 1px MC
             // shadow with the antialiased foreground into a blurred outline.
-            texture.setBlurMipmap(false, false);
+            texture.setTextureFiltering(false, false);
         } else {
             FontRenderTuning.applyFontTextureFilter(texture, actualRasterScale, texture.hasMipmaps());
         }
@@ -1752,9 +1751,15 @@ public final class SkijaTextRenderer implements TextRenderBackend {
         public void loadTexture(IResourceManager resourceManager) {
         }
 
-        @Override
-        public void setBlurMipmap(boolean blur, boolean mipmap) {
-            super.setBlurMipmap(blur, mipmap && mipmapsGenerated);
+        private void setTextureFiltering(boolean blur, boolean mipmap) {
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+            boolean useMipmap = mipmap && mipmapsGenerated;
+            int minFilter = blur
+                    ? (useMipmap ? GL11.GL_LINEAR_MIPMAP_LINEAR : GL11.GL_LINEAR)
+                    : (useMipmap ? GL11.GL_NEAREST_MIPMAP_LINEAR : GL11.GL_NEAREST);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER,
+                    blur ? GL11.GL_LINEAR : GL11.GL_NEAREST);
         }
 
         private boolean hasMipmaps() {
@@ -2064,7 +2069,7 @@ public final class SkijaTextRenderer implements TextRenderBackend {
 
     public static final class RenderedText implements TextRenderResult, AutoCloseable {
         private static final RenderedText EMPTY = new RenderedText(null, null, 0.0F, 0, 0, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F, false);
-        private static final java.util.Map<ResourceLocation, Float> LAST_FILTER_SCALE = new java.util.HashMap<>();
+        private static final Map<ResourceLocation, Float> LAST_FILTER_SCALE = new HashMap<>();
 
         private final ResourceLocation location;
         private final AbstractTexture texture;
@@ -2118,13 +2123,13 @@ public final class SkijaTextRenderer implements TextRenderBackend {
                 return;
             }
             touch();
-            net.minecraft.client.Minecraft.getMinecraft().getTextureManager().bindTexture(location);
-            GlStateManager.enableTexture2D();
-            GlStateManager.enableAlpha();
+            Minecraft.getMinecraft().getTextureManager().bindTexture(location);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_ALPHA_TEST);
             float tintR = ((tintArgb >>> 16) & 0xFF) / 255.0F;
             float tintG = ((tintArgb >>> 8) & 0xFF) / 255.0F;
             float tintB = (tintArgb & 0xFF) / 255.0F;
-            GlStateManager.color(tintR, tintG, tintB, alpha);
+            GL11.glColor4f(tintR, tintG, tintB, alpha);
 
             Float lastScale = LAST_FILTER_SCALE.get(location);
             if (lastScale == null || Math.abs(lastScale - rasterScale) > 0.01f) {
@@ -2151,33 +2156,33 @@ public final class SkijaTextRenderer implements TextRenderBackend {
                 origDstRgb = getInteger(GL14.GL_BLEND_DST_RGB, GL11.GL_ONE_MINUS_SRC_ALPHA);
                 origSrcAlpha = getInteger(GL14.GL_BLEND_SRC_ALPHA, GL11.GL_ONE);
                 origDstAlpha = getInteger(GL14.GL_BLEND_DST_ALPHA, GL11.GL_ZERO);
-                GlStateManager.enableBlend();
-                GlStateManager.tryBlendFuncSeparate(
+                GL11.glEnable(GL11.GL_BLEND);
+                GL14.glBlendFuncSeparate(
                         GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA,
                         GL11.GL_ONE, GL11.GL_ZERO);
             }
 
             try (FontRenderPipeline.State ignored = FontRenderPipeline.begin(rasterScale)) {
                 lastDrawState = drawState(texture);
-                Tessellator tessellator = Tessellator.getInstance();
-                BufferBuilder buffer = tessellator.getBuffer();
+                Tessellator tessellator = Tessellator.instance;
                 double topV = flipY ? 1.0D : 0.0D;
                 double bottomV = flipY ? 0.0D : 1.0D;
-                buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
-                buffer.pos(left, top, 0.0D).tex(0.0D, topV).color(tintR, tintG, tintB, alpha).endVertex();
-                buffer.pos(left, top + drawHeight, 0.0D).tex(0.0D, bottomV).color(tintR, tintG, tintB, alpha).endVertex();
-                buffer.pos(left + drawWidth, top + drawHeight, 0.0D).tex(1.0D, bottomV).color(tintR, tintG, tintB, alpha).endVertex();
-                buffer.pos(left + drawWidth, top, 0.0D).tex(1.0D, topV).color(tintR, tintG, tintB, alpha).endVertex();
+                tessellator.startDrawingQuads();
+                tessellator.setColorRGBA_F(tintR, tintG, tintB, alpha);
+                tessellator.addVertexWithUV(left, top, 0.0D, 0.0D, topV);
+                tessellator.addVertexWithUV(left, top + drawHeight, 0.0D, 0.0D, bottomV);
+                tessellator.addVertexWithUV(left + drawWidth, top + drawHeight, 0.0D, 1.0D, bottomV);
+                tessellator.addVertexWithUV(left + drawWidth, top, 0.0D, 1.0D, topV);
                 tessellator.draw();
             }
 
             if (premultiplied) {
                 // Do not restore with raw GL14.glBlendFuncSeparate. Minecraft 1.12 caches these
-                // values in GlStateManager; bypassing it leaves the cache and driver out of sync,
-                // so later premultiplied glyphs are accidentally drawn with SRC_ALPHA twice.
-                GlStateManager.tryBlendFuncSeparate(origSrcRgb, origDstRgb, origSrcAlpha, origDstAlpha);
+                // Restore the complete separate blend function so later premultiplied glyphs do
+                // not accidentally inherit straight-alpha blending.
+                GL14.glBlendFuncSeparate(origSrcRgb, origDstRgb, origSrcAlpha, origDstAlpha);
                 if (!wasBlend) {
-                    GlStateManager.disableBlend();
+                    GL11.glDisable(GL11.GL_BLEND);
                 }
             }
         }

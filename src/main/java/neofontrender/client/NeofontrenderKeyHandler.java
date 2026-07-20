@@ -1,13 +1,12 @@
 package neofontrender.client;
 
 import net.minecraft.client.settings.KeyBinding;
-import net.minecraftforge.client.event.InputUpdateEvent;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.client.registry.ClientRegistry;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.InputEvent;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import cpw.mods.fml.client.registry.ClientRegistry;
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.InputEvent;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 import org.lwjgl.input.Keyboard;
 import neofontrender.client.gui.NeofontrenderConfigScreen;
 import neofontrender.client.gui.NeofontrenderEmojiTestScreen;
@@ -35,7 +34,7 @@ public final class NeofontrenderKeyHandler {
     public static void init() {
         ClientRegistry.registerKeyBinding(OPEN_CONFIG);
         ClientRegistry.registerKeyBinding(OPEN_EMOJI_TEST);
-        MinecraftForge.EVENT_BUS.register(new NeofontrenderKeyHandler());
+        FMLCommonHandler.instance().bus().register(new NeofontrenderKeyHandler());
     }
 
     @SubscribeEvent

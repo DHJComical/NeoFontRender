@@ -1,11 +1,9 @@
 package neofontrender.mixin;
 
 import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
-import net.minecraft.client.renderer.ActiveRenderInfo;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntitySign;
 import net.minecraft.world.World;
-import net.minecraft.util.math.Vec3d;
 import neofontrender.client.render.sign.SignBatchRenderer;
 import neofontrender.client.render.sign.SignOcclusionCuller;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,42 +12,33 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Forge/Celeritas both call preDrawBatch immediately before the block-entity render list. */
+/** Adapts the 1.7.10 tile-entity dispatch boundary to sign batching and occlusion checks. */
 @Mixin(TileEntityRendererDispatcher.class)
 public abstract class MixinTileEntityRendererDispatcher {
-    @Shadow public World world;
-    @Shadow public double entityX;
-    @Shadow public double entityY;
-    @Shadow public double entityZ;
+    @Shadow public static double staticPlayerX;
+    @Shadow public static double staticPlayerY;
+    @Shadow public static double staticPlayerZ;
 
-    @Inject(method = "preDrawBatch", at = @At("TAIL"), remap = false)
-    private void nfr$beginSignBatch(CallbackInfo ci) {
-        // CeleritasWorldRenderer.renderBlockEntities() invokes this same vanilla dispatcher
-        // boundary before iterating TileEntityRendererDispatcher.render(...). Keeping the
-        // visibility reset here means the counters belong to the frame that actually rendered
-        // the signs; prepare() may be called at a different point and can erase those counters.
-        SignOcclusionCuller.beginFrame(world);
+    @Inject(method = "renderTileEntity", at = @At("HEAD"), cancellable = true)
+    private void nfr$beginAndCullSignBatch(TileEntity tileEntity, float partialTicks, CallbackInfo ci) {
+        // 1.7.10 has no preDrawBatch/drawBatch pair. Keep a complete collection window around
+        // this dispatcher call; the explicit hooks remain available to render-loop integrations.
+        World renderWorld = tileEntity.getWorldObj();
+        SignOcclusionCuller.beginFrame(renderWorld);
         SignBatchRenderer.begin();
-    }
-
-    @Inject(method = "render(Lnet/minecraft/tileentity/TileEntity;FI)V", at = @At("HEAD"), cancellable = true)
-    private void nfr$cullOccludedSign(TileEntity tileEntity, float partialTicks, int destroyStage,
-                                      CallbackInfo ci) {
-        // Dispatcher.entityX/Y/Z is the player entity position, not necessarily the camera (third
-        // person and detached camera modes offset it). Ray tests must originate at the same camera
-        // position used by the frustum and by vanilla block rendering, otherwise visible signs can
-        // be classified behind a wall or genuinely hidden signs can miss the wall entirely.
-        Vec3d cameraOffset = ActiveRenderInfo.getCameraPosition();
-        Vec3d camera = new Vec3d(entityX + cameraOffset.x, entityY + cameraOffset.y,
-                entityZ + cameraOffset.z);
+        if (!(tileEntity instanceof TileEntitySign)) {
+            return;
+        }
+        TileEntitySign sign = (TileEntitySign) tileEntity;
         if (tileEntity instanceof TileEntitySign && SignOcclusionCuller.shouldCull(
-                (TileEntitySign) tileEntity, world, camera.x, camera.y, camera.z)) {
+                sign, renderWorld, staticPlayerX, staticPlayerY, staticPlayerZ)) {
+            SignBatchRenderer.flush(0);
             ci.cancel();
         }
     }
 
-    @Inject(method = "drawBatch", at = @At("HEAD"), remap = false)
-    private void nfr$flushSignBatch(int pass, CallbackInfo ci) {
-        SignBatchRenderer.flush(pass);
+    @Inject(method = "renderTileEntity", at = @At("RETURN"))
+    private void nfr$flushSignBatch(TileEntity tileEntity, float partialTicks, CallbackInfo ci) {
+        SignBatchRenderer.flush(0);
     }
 }

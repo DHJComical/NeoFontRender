@@ -3,17 +3,13 @@ package neofontrender.client.render.sign;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.gui.GuiUtilRenderComponents;
-import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.init.Blocks;
 import net.minecraft.tileentity.TileEntitySign;
 import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.text.ITextComponent;
 import net.minecraftforge.client.MinecraftForgeClient;
 import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
@@ -22,6 +18,7 @@ import neofontrender.core.font.backend.TextRenderResult;
 import neofontrender.core.font.skia.SkijaTextRenderer;
 import neofontrender.core.font.support.FontRenderTuning;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +28,7 @@ import java.util.List;
  * lightmapped buffer before text is replayed, preserving the original board-before-text depth order.
  */
 public final class SignBatchRenderer {
+    private static final int CLIENT_ALL_ATTRIB_BITS = 0xFFFFFFFF;
     private static final ResourceLocation SIGN_TEXTURE = new ResourceLocation("textures/entity/sign.png");
     private static final List<Entry> ENTRIES = new ArrayList<>();
     private static boolean collecting;
@@ -79,17 +77,12 @@ public final class SignBatchRenderer {
         }
         String[] lines = new String[4];
         for (int i = 0; i < lines.length; i++) {
-            ITextComponent component = i < sign.signText.length ? sign.signText[i] : null;
-            if (component == null) {
-                lines[i] = "";
-                continue;
-            }
-            List<ITextComponent> wrapped = GuiUtilRenderComponents.splitText(component, 90, font, false, true);
-            String text = wrapped == null || wrapped.isEmpty() ? "" : wrapped.get(0).getFormattedText();
+            String text = i < sign.signText.length && sign.signText[i] != null ? sign.signText[i] : "";
+            text = font.trimStringToWidth(text, 90);
             lines[i] = i == sign.lineBeingEdited ? "> " + text + " <" : text;
         }
-        int light = sign.getWorld() == null ? 0x00F000F0
-                : sign.getWorld().getCombinedLight(sign.getPos(), 0);
+        int light = sign.getWorldObj() == null ? 0x00F000F0
+                : sign.getWorldObj().getLightBrightnessForSkyBlocks(sign.xCoord, sign.yCoord, sign.zCoord, 0);
         ENTRIES.add(new Entry(x, y, z, sign.getBlockType(), sign.getBlockMetadata(), light, lines));
         return true;
     }
@@ -106,7 +99,9 @@ public final class SignBatchRenderer {
         collectedLastFrame = entries.size();
         modelBatchesLastFrame = 0;
         textDrawsLastFrame = 0;
+        GlState state = null;
         try {
+            state = GlState.capture();
             drawModels(entries);
             drawText(entries);
             lastFallback = "";
@@ -117,11 +112,16 @@ public final class SignBatchRenderer {
             failed = true;
             NeoFontRender.LOGGER.error("Failed to flush cross-tile sign batch; using immediate rendering until restart", t);
         } finally {
-            // These are the states Forge's drawBatch expects to own immediately after this hook.
-            GlStateManager.depthMask(true);
-            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-            RenderHelper.enableStandardItemLighting();
-            flushing = false;
+            try {
+                if (state != null) {
+                    state.restore();
+                }
+            } catch (Throwable t) {
+                failed = true;
+                NeoFontRender.LOGGER.error("Failed to restore GL state after flushing sign batch", t);
+            } finally {
+                flushing = false;
+            }
         }
     }
 
@@ -136,17 +136,16 @@ public final class SignBatchRenderer {
         TextureManager textures = mc.getTextureManager();
         textures.bindTexture(SIGN_TEXTURE);
         RenderHelper.disableStandardItemLighting();
-        GlStateManager.enableTexture2D();
-        GlStateManager.enableDepth();
-        GlStateManager.depthMask(true);
-        GlStateManager.disableCull();
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+        GL11.glDepthMask(true);
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
 
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
         for (Entry entry : entries) {
-            appendModel(buffer, entry);
+            appendModel(tessellator, entry);
         }
         tessellator.draw();
         modelBatchesLastFrame = 1;
@@ -159,13 +158,17 @@ public final class SignBatchRenderer {
             return;
         }
         for (Entry entry : entries) {
-            GlStateManager.pushMatrix();
+            int blockLight = entry.light & 0xFFFF;
+            int skyLight = entry.light >>> 16 & 0xFFFF;
+            OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, blockLight, skyLight);
+            GL11.glMatrixMode(GL11.GL_MODELVIEW);
+            GL11.glPushMatrix();
             try {
                 applySignTransform(entry);
-                GlStateManager.translate(0.0F, 0.33333334F, 0.046666667F);
-                GlStateManager.scale(0.010416667F, -0.010416667F, 0.010416667F);
-                GlStateManager.glNormal3f(0.0F, 0.0F, -0.010416667F);
-                GlStateManager.depthMask(false);
+                GL11.glTranslatef(0.0F, 0.33333334F, 0.046666667F);
+                GL11.glScalef(0.010416667F, -0.010416667F, 0.010416667F);
+                GL11.glNormal3f(0.0F, 0.0F, -0.010416667F);
+                GL11.glDepthMask(false);
                 FontRenderTuning.updateFromCurrentGlState(false);
                 if (NeofontrenderConfig.signTextLodCulling()
                         && !FontRenderTuning.isCurrentTextQuadVisible(-45.0F, -20.0F, 90.0F, 40.0F,
@@ -178,22 +181,74 @@ public final class SignBatchRenderer {
                     textDrawsLastFrame++;
                 }
             } finally {
-                GlStateManager.depthMask(true);
-                GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-                GlStateManager.popMatrix();
+                GL11.glDepthMask(true);
+                GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+                GL11.glMatrixMode(GL11.GL_MODELVIEW);
+                GL11.glPopMatrix();
+            }
+        }
+    }
+
+    /** Captures all fixed-function state touched directly or indirectly by batched rendering. */
+    private static final class GlState {
+        private final float lightmapX;
+        private final float lightmapY;
+        private final int activeTexture;
+        private final int clientActiveTexture;
+
+        private GlState(float lightmapX, float lightmapY, int activeTexture, int clientActiveTexture) {
+            this.lightmapX = lightmapX;
+            this.lightmapY = lightmapY;
+            this.activeTexture = activeTexture;
+            this.clientActiveTexture = clientActiveTexture;
+        }
+
+        private static GlState capture() {
+            GlState state = new GlState(
+                    OpenGlHelper.lastBrightnessX,
+                    OpenGlHelper.lastBrightnessY,
+                    GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE),
+                    GL11.glGetInteger(GL13.GL_CLIENT_ACTIVE_TEXTURE));
+            GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
+            try {
+                GL11.glPushClientAttrib(CLIENT_ALL_ATTRIB_BITS);
+            } catch (Throwable t) {
+                GL11.glPopAttrib();
+                throw t;
+            }
+            return state;
+        }
+
+        private void restore() {
+            try {
+                try {
+                    GL11.glPopClientAttrib();
+                } finally {
+                    GL11.glPopAttrib();
+                }
+            } finally {
+                try {
+                    OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, lightmapX, lightmapY);
+                } finally {
+                    try {
+                        OpenGlHelper.setActiveTexture(activeTexture);
+                    } finally {
+                        OpenGlHelper.setClientActiveTexture(clientActiveTexture);
+                    }
+                }
             }
         }
     }
 
     private static void applySignTransform(Entry entry) {
-        GlStateManager.translate((float) entry.x + 0.5F, (float) entry.y + 0.5F, (float) entry.z + 0.5F);
-        GlStateManager.rotate(-entry.rotationDegrees(), 0.0F, 1.0F, 0.0F);
+        GL11.glTranslated(entry.x + 0.5D, entry.y + 0.5D, entry.z + 0.5D);
+        GL11.glRotatef(-entry.rotationDegrees(), 0.0F, 1.0F, 0.0F);
         if (!entry.standing()) {
-            GlStateManager.translate(0.0F, -0.3125F, -0.4375F);
+            GL11.glTranslatef(0.0F, -0.3125F, -0.4375F);
         }
     }
 
-    private static void appendModel(BufferBuilder buffer, Entry entry) {
+    private static void appendModel(Tessellator buffer, Entry entry) {
         // ModelSign UV regions are stable normalized coordinates in the currently bound sign texture.
         appendQuad(buffer, entry, -0.75F, -0.875F, -0.0625F, 0.75F, -0.125F,
                 2.0F / 64.0F, 2.0F / 32.0F, 26.0F / 64.0F, 14.0F / 32.0F);
@@ -207,7 +262,7 @@ public final class SignBatchRenderer {
         }
     }
 
-    private static void appendQuad(BufferBuilder buffer, Entry entry,
+    private static void appendQuad(Tessellator buffer, Entry entry,
                                    float left, float top, float z, float right, float bottom,
                                    float u0, float v0, float u1, float v1) {
         vertex(buffer, entry, left, top, z, u0, v0);
@@ -216,7 +271,7 @@ public final class SignBatchRenderer {
         vertex(buffer, entry, right, top, z, u1, v0);
     }
 
-    private static void vertex(BufferBuilder buffer, Entry entry, float x, float y, float z,
+    private static void vertex(Tessellator buffer, Entry entry, float x, float y, float z,
                                float u, float v) {
         // ModelSign first scales its 1/16 model coordinates by (2/3,-2/3,-2/3).
         double px = x * 0.6666667D;
@@ -231,13 +286,9 @@ public final class SignBatchRenderer {
         double cos = Math.cos(radians);
         double rx = cos * px + sin * pz;
         double rz = -sin * px + cos * pz;
-        int blockLight = entry.light & 0xFFFF;
-        int skyLight = entry.light >>> 16 & 0xFFFF;
-        buffer.pos(entry.x + 0.5D + rx, entry.y + 0.5D + py, entry.z + 0.5D + rz)
-                .color(255, 255, 255, 255)
-                .tex(u, v)
-                .lightmap(blockLight, skyLight)
-                .endVertex();
+        buffer.setColorRGBA(255, 255, 255, 255);
+        buffer.setBrightness(entry.light);
+        buffer.addVertexWithUV(entry.x + 0.5D + rx, entry.y + 0.5D + py, entry.z + 0.5D + rz, u, v);
     }
 
     private static final class Entry {
@@ -260,7 +311,7 @@ public final class SignBatchRenderer {
         }
 
         private boolean standing() {
-            return block == Blocks.STANDING_SIGN;
+            return block == Blocks.standing_sign;
         }
 
         private float rotationDegrees() {

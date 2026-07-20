@@ -13,6 +13,7 @@ import neofontrender.core.font.support.FontRenderTuning;
 import javax.annotation.Nullable;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontFormatException;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.font.FontRenderContext;
@@ -119,7 +120,7 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
                 try {
                     baseFont = Font.createFont(Font.TRUETYPE_FONT, fontFile);
                     baseFont = baseFont.deriveFont(style, 1.0F);
-                } catch (java.awt.FontFormatException e) {
+                } catch (FontFormatException e) {
                     throw new IOException("Failed to load local font file " + fontFile, e);
                 }
             } else {
@@ -132,7 +133,7 @@ public class AwtTtfGlyphProvider implements GlyphProvider {
                         IResource resource = manager.getResource(location);
                         try (InputStream stream = resource.getInputStream()) {
                             baseFont = Font.createFont(Font.TRUETYPE_FONT, stream);
-                        } catch (java.awt.FontFormatException e) {
+                        } catch (FontFormatException e) {
                             throw new IOException("Failed to load TTF font from " + fontName, e);
                         }
                     } catch (Exception e) {

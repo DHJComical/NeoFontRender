@@ -1,27 +1,30 @@
 package neofontrender;
 
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.SidedProxy;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.Mod;
+import cpw.mods.fml.common.SidedProxy;
+import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLPostInitializationEvent;
+import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import neofontrender.common.CommonProxy;
 
 @Mod(
-        modid = Tags.MOD_ID,
-        name = Tags.MOD_NAME,
+        modid = NeoFontRender.MOD_ID,
+        name = NeoFontRender.MOD_NAME,
         version = Tags.VERSION,
-    dependencies = "required-after:modularui@[3.1.6,)",
-        clientSideOnly = true,
-        acceptedMinecraftVersions = "[1.12,1.13)"
+        dependencies = "required-after:modularui2",
+        acceptedMinecraftVersions = "[1.7.10]",
+        acceptableRemoteVersions = "*"
 )
 public class NeoFontRender {
 
-    public static final Logger LOGGER = LogManager.getLogger(Tags.MOD_NAME);
+    public static final String MOD_ID = "neofontrender";
+    public static final String MOD_NAME = "Neo Font Render";
 
-    @Mod.Instance(Tags.MOD_ID)
+    public static final Logger LOGGER = LogManager.getLogger(MOD_NAME);
+
+    @Mod.Instance(MOD_ID)
     public static NeoFontRender instance;
 
     @SidedProxy(

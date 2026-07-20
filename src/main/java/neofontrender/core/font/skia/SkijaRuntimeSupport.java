@@ -7,7 +7,7 @@ import java.util.Locale;
  */
 public final class SkijaRuntimeSupport {
 
-    private static final int MIN_JAVA_VERSION = 9;
+    private static final int MIN_JAVA_VERSION = 8;
 
     private SkijaRuntimeSupport() {
     }

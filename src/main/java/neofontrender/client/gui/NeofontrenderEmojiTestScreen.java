@@ -8,11 +8,11 @@ import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.Widget;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiTextField;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 import neofontrender.core.font.FontManager;
 
 /**
@@ -57,7 +57,7 @@ public final class NeofontrenderEmojiTestScreen {
         public void onInit() {
             super.onInit();
             Minecraft mc = Minecraft.getMinecraft();
-            inputField = new GuiTextField(0, mc.fontRenderer, getArea().x() + 16, 0, getArea().w() - 32, 16);
+            inputField = new GuiTextField(mc.fontRenderer, getArea().x() + 16, 0, getArea().w() - 32, 16);
             inputField.setMaxStringLength(256);
             inputField.setFocused(true);
             inputField.setText(userText);
@@ -90,8 +90,8 @@ public final class NeofontrenderEmojiTestScreen {
             y += 12;
 
             if (inputField != null) {
-                inputField.x = areaX + 16;
-                inputField.y = y;
+                inputField.xPosition = areaX + 16;
+                inputField.yPosition = y;
                 inputField.width = areaW - 32;
 
                 String currentInput = inputField.getText();
@@ -167,7 +167,7 @@ public final class NeofontrenderEmojiTestScreen {
         @Override
         public Result onMousePressed(int mouseButton) {
             if (inputField != null) {
-                inputField.mouseClicked(inputField.x, inputField.y, mouseButton);
+                inputField.mouseClicked(inputField.xPosition, inputField.yPosition, mouseButton);
             }
             return Result.ACCEPT;
         }

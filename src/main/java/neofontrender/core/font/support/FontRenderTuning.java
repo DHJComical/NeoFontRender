@@ -3,6 +3,7 @@ package neofontrender.core.font.support;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.texture.AbstractTexture;
+import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -68,7 +69,8 @@ public final class FontRenderTuning {
                         !orthographic,
                         shadow);
             }
-        } catch (RuntimeException | LinkageError ignored) {
+        } catch (RuntimeException | LinkageError error) {
+            NeoFontRender.LOGGER.debug("Unable to sample the current OpenGL transform", error);
         }
         return currentContext;
     }
@@ -108,8 +110,8 @@ public final class FontRenderTuning {
     }
 
     public static void applyFontTextureFilter(AbstractTexture texture, float rasterScale, boolean allowMipmap) {
-        boolean linear = useLinearFiltering(rasterScale);
-        texture.setBlurMipmap(linear, allowMipmap && linear && NeofontrenderConfig.renderingMipmap());
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture.getGlTextureId());
+        applyBoundTextureFilter(rasterScale, allowMipmap);
     }
 
     public static void applyBoundTextureFilter(float rasterScale) {
@@ -174,9 +176,10 @@ public final class FontRenderTuning {
         try {
             Minecraft mc = Minecraft.getMinecraft();
             if (mc != null && mc.displayWidth > 0 && mc.displayHeight > 0) {
-                return Math.max(1, new ScaledResolution(mc).getScaleFactor());
+                return Math.max(1, new ScaledResolution(mc, mc.displayWidth, mc.displayHeight).getScaleFactor());
             }
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException error) {
+            NeoFontRender.LOGGER.debug("Unable to determine the scaled GUI resolution", error);
         }
         return 1.0F;
     }
@@ -254,7 +257,8 @@ public final class FontRenderTuning {
             if (max > 1.0F) {
                 GL11.glTexParameterf(GL11.GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, max);
             }
-        } catch (RuntimeException | LinkageError ignored) {
+        } catch (RuntimeException | LinkageError error) {
+            NeoFontRender.LOGGER.debug("Anisotropic texture filtering is unavailable", error);
         }
     }
 

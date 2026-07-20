@@ -15,13 +15,11 @@ import io.github.humbleui.skija.paragraph.ParagraphStyle;
 import io.github.humbleui.skija.paragraph.TextStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.EnumChatFormatting;
+import neofontrender.NeoFontRender;
 import neofontrender.client.gui.NeofontrenderEmojiTestScreen;
 import neofontrender.core.config.NeofontrenderConfig;
 import neofontrender.core.font.FontManager;
@@ -30,16 +28,17 @@ import neofontrender.core.font.backend.TextRenderBackend;
 import neofontrender.core.font.backend.TextRenderResult;
 import neofontrender.core.font.skia.SkiaTextSegmenter;
 import neofontrender.core.font.skia.SkijaTextRenderer;
+import neofontrender.core.font.support.FontRenderTuning;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;
 
-import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.IntBuffer;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -47,13 +46,13 @@ import java.util.List;
 public class NeofontrenderCommand extends CommandBase {
 
     @Override
-    public String getName() {
+    public String getCommandName() {
         return "neofontrender";
     }
 
     @Override
-    public String getUsage(ICommandSender sender) {
-        return "/" + getName() + " fonts|info|reload|export [text]";
+    public String getCommandUsage(ICommandSender sender) {
+        return "/" + getCommandName() + " fonts|info|reload|export [text]";
     }
 
     @Override
@@ -62,13 +61,13 @@ public class NeofontrenderCommand extends CommandBase {
     }
 
     @Override
-    public void execute(MinecraftServer server, ICommandSender sender, String[] args) {
+    public void processCommand(ICommandSender sender, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "Neo Font Render Commands:"));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  /neofontrender fonts - Show current font families"));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  /neofontrender info - Show engine status"));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  /neofontrender reload - Reload fonts"));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  /neofontrender export [text] - Export diagnostic PNGs at multiple oversample scales"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "Neo Font Render Commands:"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  /neofontrender fonts - Show current font families"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  /neofontrender info - Show engine status"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  /neofontrender reload - Reload fonts"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  /neofontrender export [text] - Export diagnostic PNGs at multiple oversample scales"));
             return;
         }
 
@@ -92,136 +91,136 @@ public class NeofontrenderCommand extends CommandBase {
                 executeExport(sender, args);
                 break;
             default:
-                sender.sendMessage(new TextComponentString(TextFormatting.RED + "Unknown subcommand: " + args[0]));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Unknown subcommand: " + args[0]));
         }
     }
 
     private void executeFonts(ICommandSender sender) {
-        sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== Font Families ==="));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "=== Font Families ==="));
 
         if (!FontManager.INSTANCE.isSkiaActive()) {
-            sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "Skia engine not active. Current engine: "
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.YELLOW + "Skia engine not active. Current engine: "
                     + (FontManager.INSTANCE.isSfrActive() ? "SFR" : "vanilla")));
             return;
         }
 
         TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
         if (backend == null) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Text render backend unavailable"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Text render backend unavailable"));
             return;
         }
 
         String[] families = backend.getFontFamilies();
         if (families == null) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "fontFamilies is null"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "fontFamilies is null"));
             return;
         }
 
-        sender.sendMessage(new TextComponentString(TextFormatting.AQUA + "fontFamilies count: " + families.length));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.AQUA + "fontFamilies count: " + families.length));
         for (int i = 0; i < families.length; i++) {
             String family = families[i];
-            sender.sendMessage(new TextComponentString(
-                    TextFormatting.WHITE + "  [" + i + "] " + TextFormatting.GREEN + family));
+            sender.addChatMessage(new ChatComponentText(
+                    EnumChatFormatting.WHITE + "  [" + i + "] " + EnumChatFormatting.GREEN + family));
         }
 
         // Check what FontMgr.getDefault() can find
-        sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== System FontMgr Resolution ==="));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "=== System FontMgr Resolution ==="));
         try {
             FontMgr defaultMgr = FontMgr.getDefault();
 
             // Check each configured family against system fonts
-            sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== Configured Family Resolution ==="));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "=== Configured Family Resolution ==="));
             for (String family : families) {
                 try {
                     Typeface tf = defaultMgr.matchFamilyStyle(family, FontStyle.NORMAL);
                     if (tf != null) {
                         String resolvedName = tf.getFamilyName();
-                        sender.sendMessage(new TextComponentString(
-                                TextFormatting.WHITE + "  " + family + " -> "
-                                        + TextFormatting.GREEN + resolvedName));
+                        sender.addChatMessage(new ChatComponentText(
+                                EnumChatFormatting.WHITE + "  " + family + " -> "
+                                        + EnumChatFormatting.GREEN + resolvedName));
                         tf.close();
                     } else {
-                        sender.sendMessage(new TextComponentString(
-                                TextFormatting.WHITE + "  " + family + " -> "
-                                        + TextFormatting.RED + "NOT FOUND"));
+                        sender.addChatMessage(new ChatComponentText(
+                                EnumChatFormatting.WHITE + "  " + family + " -> "
+                                        + EnumChatFormatting.RED + "NOT FOUND"));
                     }
                 } catch (Throwable e) {
-                    sender.sendMessage(new TextComponentString(
-                            TextFormatting.WHITE + "  " + family + " -> "
-                                    + TextFormatting.RED + "ERROR: " + e.getMessage()));
+                    sender.addChatMessage(new ChatComponentText(
+                            EnumChatFormatting.WHITE + "  " + family + " -> "
+                                    + EnumChatFormatting.RED + "ERROR: " + e.getMessage()));
                 }
             }
         } catch (Throwable t) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Error querying FontMgr: " + t.getMessage()));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Error querying FontMgr: " + t.getMessage()));
         }
     }
 
     private void executeInfo(ICommandSender sender) {
-        sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== Engine Status ==="));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  SFR active: " + FontManager.INSTANCE.isSfrActive()));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia active: " + FontManager.INSTANCE.isSkiaActive()));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Cosmic active: " + FontManager.INSTANCE.isCosmicActive()));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Engine config: " + neofontrender.core.config.NeofontrenderConfig.renderingEngine()));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Enabled: " + neofontrender.core.config.NeofontrenderConfig.enabled()));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Font name: " + neofontrender.core.config.NeofontrenderConfig.fontName()));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Font size: " + neofontrender.core.config.NeofontrenderConfig.fontSize()));
-        sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Oversample: " + neofontrender.core.config.NeofontrenderConfig.fontOversample()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "=== Engine Status ==="));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  SFR active: " + FontManager.INSTANCE.isSfrActive()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia active: " + FontManager.INSTANCE.isSkiaActive()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Cosmic active: " + FontManager.INSTANCE.isCosmicActive()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Engine config: " + NeofontrenderConfig.renderingEngine()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Enabled: " + NeofontrenderConfig.enabled()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Font name: " + NeofontrenderConfig.fontName()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Font size: " + NeofontrenderConfig.fontSize()));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Oversample: " + NeofontrenderConfig.fontOversample()));
         SkijaTextRenderer renderer = FontManager.INSTANCE.getSkijaTextRenderer();
         if (renderer != null) {
             SkijaTextRenderer.DebugState state = renderer.debugState();
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia GPU offscreen requested: " + state.gpuRequested()));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia GPU mode: "
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia GPU offscreen requested: " + state.gpuRequested()));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia GPU mode: "
                     + (state.gpuRequested()
-                    ? (neofontrender.core.config.NeofontrenderConfig.skiaGpuSubmitViaCpuTexture()
+                    ? (NeofontrenderConfig.skiaGpuSubmitViaCpuTexture()
                     ? "isolated-context + DynamicTexture submit"
                     : "isolated-context + shared texture")
                     : "off")));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia last raster path: " + state.lastRasterPath()));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia GPU context: " + state.gpuContextCreated()));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia GPU unavailable: " + state.gpuUnavailable()));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia last raster path: " + state.lastRasterPath()));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia GPU context: " + state.gpuContextCreated()));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia GPU unavailable: " + state.gpuUnavailable()));
             if (state.lastGpuFallbackReason() != null && !state.lastGpuFallbackReason().isEmpty()) {
-                sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "  Skia GPU fallback reason: " + state.lastGpuFallbackReason()));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.YELLOW + "  Skia GPU fallback reason: " + state.lastGpuFallbackReason()));
             }
             if (state.lastDrawState() != null && !state.lastDrawState().isEmpty()) {
-                sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia last draw: " + state.lastDrawState()));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia last draw: " + state.lastDrawState()));
             }
             if (state.lastRasterStats() != null && !state.lastRasterStats().isEmpty()) {
-                sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia raster stats: " + state.lastRasterStats()));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia raster stats: " + state.lastRasterStats()));
             }
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia cache: text "
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia cache: text "
                     + state.renderCacheSize() + "/" + state.renderCacheMax()
                     + ", segment " + state.segmentCacheSize() + "/" + state.segmentCacheMax()
                     + ", measure " + state.measureCacheSize() + "/" + state.measureCacheMax()));
-            if (neofontrender.core.config.NeofontrenderConfig.debugRenderStats()) {
-                sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia cache h/m/e: text "
+            if (NeofontrenderConfig.debugRenderStats()) {
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia cache h/m/e: text "
                         + state.renderCacheHits() + "/" + state.renderCacheMisses() + "/" + state.renderCacheEvictions()
                         + ", segment " + state.segmentCacheHits() + "/" + state.segmentCacheMisses()
                         + "/" + state.segmentCacheEvictions()
                         + ", measure " + state.measureCacheHits() + "/" + state.measureCacheMisses()
                         + "/" + state.measureCacheEvictions()));
                 SkiaTextSegmenter.DebugState segmentState = SkiaTextSegmenter.debugState();
-                sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia segment cache: "
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia segment cache: "
                         + segmentState.enabled()
                         + " attempts/runs/reject/segs " + segmentState.attempts()
                         + "/" + segmentState.segmentedRuns()
                         + "/" + segmentState.rejectedRuns()
                         + "/" + segmentState.emittedSegments()));
             } else {
-                sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia debug stats: disabled"));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia debug stats: disabled"));
             }
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Skia raster count cpu/gpu: "
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Skia raster count cpu/gpu: "
                     + state.cpuRasterCount() + "/" + state.gpuRasterCount()));
         }
         FontSet.DebugState sfrState = FontManager.INSTANCE.getSfrDebugState();
         if (sfrState != null) {
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  SFR glyph cache: info "
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  SFR glyph cache: info "
                     + sfrState.glyphInfoCacheSize()
                     + ", baked " + sfrState.bakedGlyphCacheSize()
                     + ", buckets " + sfrState.glyphWidthBuckets()));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  SFR glyph h/m: info "
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  SFR glyph h/m: info "
                     + sfrState.glyphInfoHits() + "/" + sfrState.glyphInfoMisses()
                     + ", baked " + sfrState.bakedGlyphHits() + "/" + sfrState.bakedGlyphMisses()));
-            sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  SFR layout cache: "
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  SFR layout cache: "
                     + sfrState.layoutCacheSize() + "/" + sfrState.layoutCacheMax()
                     + " h/m/e " + sfrState.layoutCacheHits()
                     + "/" + sfrState.layoutCacheMisses()
@@ -233,20 +232,20 @@ public class NeofontrenderCommand extends CommandBase {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.getResourceManager() != null) {
             FontManager.INSTANCE.reload(mc.getResourceManager());
-            sender.sendMessage(new TextComponentString(TextFormatting.GREEN + "Fonts reloaded."));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "Fonts reloaded."));
         } else {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Resource manager not available."));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Resource manager not available."));
         }
     }
 
     private void executeTest(ICommandSender sender) {
         if (!FontManager.INSTANCE.isSkiaActive()) {
-            sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "Skia engine not active."));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.YELLOW + "Skia engine not active."));
             return;
         }
         TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
         if (backend == null) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "Text render backend unavailable"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Text render backend unavailable"));
             return;
         }
 
@@ -258,30 +257,30 @@ public class NeofontrenderCommand extends CommandBase {
                 "Test 😀 ❤️ 🎉"
         };
 
-        sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== Emoji Render Test ==="));
+        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "=== Emoji Render Test ==="));
         for (String test : testCases) {
             float width = backend.measure(test, false, false);
             TextRenderResult rendered = backend.render(test, 0xFFFFFFFF, false, false);
             boolean success = rendered.advance() > 0;
-            sender.sendMessage(new TextComponentString(
-                    TextFormatting.WHITE + "  \"" + test + "\""
-                            + TextFormatting.AQUA + " width=" + String.format("%.1f", width)
-                            + (success ? TextFormatting.GREEN + " OK" : TextFormatting.RED + " EMPTY")));
+            sender.addChatMessage(new ChatComponentText(
+                    EnumChatFormatting.WHITE + "  \"" + test + "\""
+                            + EnumChatFormatting.AQUA + " width=" + String.format("%.1f", width)
+                            + (success ? EnumChatFormatting.GREEN + " OK" : EnumChatFormatting.RED + " EMPTY")));
         }
     }
 
     private void executeGui(ICommandSender sender) {
-        Minecraft.getMinecraft().addScheduledTask(() -> NeofontrenderEmojiTestScreen.open());
+        NeofontrenderEmojiTestScreen.open();
     }
 
     private void executeExport(ICommandSender sender, String[] args) {
         if (!FontManager.INSTANCE.isSkiaActive()) {
-            sender.sendMessage(new TextComponentString(TextFormatting.YELLOW + "Skia engine not active."));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.YELLOW + "Skia engine not active."));
             return;
         }
         SkijaTextRenderer renderer = FontManager.INSTANCE.getSkijaTextRenderer();
         if (renderer == null) {
-            sender.sendMessage(new TextComponentString(TextFormatting.RED + "SkijaTextRenderer unavailable"));
+            sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "SkijaTextRenderer unavailable"));
             return;
         }
 
@@ -294,10 +293,10 @@ public class NeofontrenderCommand extends CommandBase {
         String finalText = text;
 
         Minecraft mc = Minecraft.getMinecraft();
-        mc.addScheduledTask(() -> {
+        {
             StringBuilder log = new StringBuilder();
             try {
-                File outputDir = new File(mc.gameDir, "neofontrender-export");
+                File outputDir = new File(mc.mcDataDir, "neofontrender-export");
                 if (!outputDir.isDirectory()) {
                     outputDir.mkdirs();
                 }
@@ -335,12 +334,12 @@ public class NeofontrenderCommand extends CommandBase {
                     String textureReport = renderer.exportGpuDiagnostics(outputDir, finalText);
                     log.append(textureReport).append("\n");
                     log.append("  files: cpu_reference_texture.png, gpu_isolated_readback.png\n\n");
-                    sender.sendMessage(new TextComponentString(TextFormatting.GREEN
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN
                             + "CPU/GPU texture PNGs exported."));
                 } catch (Throwable t) {
                     log.append("  texture export FAILED: ").append(t.getClass().getSimpleName())
                             .append(": ").append(t.getMessage()).append("\n\n");
-                    sender.sendMessage(new TextComponentString(TextFormatting.RED
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED
                             + "CPU/GPU texture export failed: " + t.getMessage()));
                 }
 
@@ -391,7 +390,7 @@ public class NeofontrenderCommand extends CommandBase {
                             try (Image image = surface.makeImageSnapshot();
                                  Data png = image.encodeToData(EncodedImageFormat.PNG)) {
                                 String filename = String.format("raw_oversample_%02dx.png", scale);
-                                java.nio.file.Files.write(new File(outputDir, filename).toPath(), png.getBytes());
+                                Files.write(new File(outputDir, filename).toPath(), png.getBytes());
                                 log.append(String.format("  %s: %dx%dpx, fontSize=%d%n",
                                         filename, width, height, (int) effectiveFontSize));
                             }
@@ -435,8 +434,8 @@ public class NeofontrenderCommand extends CommandBase {
 
                     try {
                         // Set up GL state for this scenario
-                        GlStateManager.pushMatrix();
-                        GlStateManager.scale(textScale, textScale, 1.0f);
+                        GL11.glPushMatrix();
+                        GL11.glScalef(textScale, textScale, 1.0F);
 
                         if (blendMode == 1) {
                             GL11.glEnable(GL11.GL_BLEND);
@@ -457,10 +456,9 @@ public class NeofontrenderCommand extends CommandBase {
                         int curProgram = GL11.glGetInteger(0x8B8D);
 
                         // Update draw context for this scale
-                        neofontrender.core.font.support.FontRenderTuning.DrawContext ctx =
-                                neofontrender.core.font.support.FontRenderTuning.currentDrawContext();
-                        float rasterScale = neofontrender.core.font.support.FontRenderTuning.rasterScale(oversample);
-                        boolean linear = neofontrender.core.font.support.FontRenderTuning.useLinearFiltering(rasterScale);
+                        FontRenderTuning.DrawContext ctx = FontRenderTuning.currentDrawContext();
+                        float rasterScale = FontRenderTuning.rasterScale(oversample);
+                        boolean linear = FontRenderTuning.useLinearFiltering(rasterScale);
                         float screenScale = ctx.pixelScale();
                         float ratio = screenScale / Math.max(1.0F, rasterScale);
 
@@ -507,7 +505,7 @@ public class NeofontrenderCommand extends CommandBase {
                         }
 
                         // Restore GL state
-                        GlStateManager.popMatrix();
+                        GL11.glPopMatrix();
                         if (blendMode != 0) {
                             if (!origBlend) GL11.glDisable(GL11.GL_BLEND);
                             GL14.glBlendFuncSeparate(origSrcRgb, origDstRgb, origSrcRgb, origDstRgb);
@@ -549,19 +547,18 @@ public class NeofontrenderCommand extends CommandBase {
                             .append(" ").append(viewport[2]).append("x").append(viewport[3]).append("\n");
 
                     // Chat: GL state summary
-                    sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== GL State ==="));
-                    sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Filter: " + TextFormatting.GREEN
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "=== GL State ==="));
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Filter: " + EnumChatFormatting.GREEN
                             + glFilterName(texMinFilter) + " / " + glFilterName(texMagFilter)));
-                    sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Blend: " + blendEnabled
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Blend: " + blendEnabled
                             + " " + glBlendFuncName(srcRgb) + "/" + glBlendFuncName(dstRgb)));
-                    sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  Shader: " + (currentProgram == 0 ? "none" : "active#" + currentProgram)));
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  Shader: " + (currentProgram == 0 ? "none" : "active#" + currentProgram)));
 
                     // === Part 4: Filter decision analysis ===
                     log.append("\n--- Part 4: Filter Decision Analysis ---\n");
-                    float rasterScale = neofontrender.core.font.support.FontRenderTuning.rasterScale(oversample);
-                    boolean linearFilter = neofontrender.core.font.support.FontRenderTuning.useLinearFiltering(rasterScale);
-                    neofontrender.core.font.support.FontRenderTuning.DrawContext ctx =
-                            neofontrender.core.font.support.FontRenderTuning.currentDrawContext();
+                    float rasterScale = FontRenderTuning.rasterScale(oversample);
+                    boolean linearFilter = FontRenderTuning.useLinearFiltering(rasterScale);
+                    FontRenderTuning.DrawContext ctx = FontRenderTuning.currentDrawContext();
                     float screenScale = ctx.pixelScale();
                     float roundedScale = ctx.roundedPixelScale();
                     float ratio = screenScale / Math.max(1.0F, rasterScale);
@@ -616,12 +613,12 @@ public class NeofontrenderCommand extends CommandBase {
                     log.append("\n  FINAL DECISION: ").append(linearFilter ? "GL_LINEAR" : "GL_NEAREST").append("\n");
 
                     // Chat: Filter decision summary
-                    sender.sendMessage(new TextComponentString(TextFormatting.GOLD + "=== Filter Decision ==="));
-                    sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  rasterScale=" + rasterScale
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GOLD + "=== Filter Decision ==="));
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  rasterScale=" + rasterScale
                             + " screenScale=" + screenScale + " ratio=" + String.format("%.3f", ratio)
                             + " 1/ratio=" + (ratio > 0 ? String.format("%.3f", 1.0f / ratio) : "N/A")));
-                    TextFormatting filterColor = linearFilter ? TextFormatting.GREEN : TextFormatting.RED;
-                    sender.sendMessage(new TextComponentString(TextFormatting.WHITE + "  useLinearFiltering(): "
+                    EnumChatFormatting filterColor = linearFilter ? EnumChatFormatting.GREEN : EnumChatFormatting.RED;
+                    sender.addChatMessage(new ChatComponentText(EnumChatFormatting.WHITE + "  useLinearFiltering(): "
                             + filterColor + linearFilter));
                     if (!linearFilter) {
                         // Find which exclusion triggered
@@ -636,7 +633,7 @@ public class NeofontrenderCommand extends CommandBase {
                         else if (NeofontrenderConfig.excludeIntegerScale() && ctx.orthographic()
                                 && Math.abs(roundedScale / Math.max(1.0F, rasterScale) - Math.round(roundedScale / Math.max(1.0F, rasterScale))) <= 0.03f)
                             reason = "integer pixel scale";
-                        sender.sendMessage(new TextComponentString(TextFormatting.RED + "  >> CAUSE: " + reason));
+                        sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "  >> CAUSE: " + reason));
                     }
 
                 } catch (Throwable t) {
@@ -645,20 +642,22 @@ public class NeofontrenderCommand extends CommandBase {
 
                 // Write report file
                 File reportFile = new File(outputDir, "report.txt");
-                java.nio.file.Files.write(reportFile.toPath(), log.toString().getBytes("UTF-8"));
+                Files.write(reportFile.toPath(), log.toString().getBytes("UTF-8"));
 
-                sender.sendMessage(new TextComponentString(TextFormatting.GREEN + "Export complete! " + outputDir.getAbsolutePath()));
-                sender.sendMessage(new TextComponentString(TextFormatting.GRAY + "  report.txt + *.png written"));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "Export complete! " + outputDir.getAbsolutePath()));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.GRAY + "  report.txt + *.png written"));
             } catch (Throwable t) {
-                sender.sendMessage(new TextComponentString(TextFormatting.RED + "Export failed: " + t.getMessage()));
+                sender.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "Export failed: " + t.getMessage()));
                 // Still write partial report
                 try {
-                    java.nio.file.Files.write(
-                            new File(mc.gameDir, "neofontrender-export/report.txt").toPath(),
+                    Files.write(
+                            new File(mc.mcDataDir, "neofontrender-export/report.txt").toPath(),
                             ("FAILED: " + t.getMessage() + "\n\n" + log).getBytes("UTF-8"));
-                } catch (Exception ignored) {}
+                } catch (Exception reportError) {
+                    NeoFontRender.LOGGER.error("Failed to write NeoFontRender export failure report", reportError);
+                }
             }
-        });
+        }
     }
 
     private static String glFilterName(int filter) {
@@ -690,7 +689,7 @@ public class NeofontrenderCommand extends CommandBase {
     }
 
     @Override
-    public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, @Nullable BlockPos targetPos) {
+    public List<String> addTabCompletionOptions(ICommandSender sender, String[] args) {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>();
             String prefix = args[0].toLowerCase();

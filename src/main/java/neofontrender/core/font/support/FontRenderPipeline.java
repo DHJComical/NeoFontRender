@@ -2,7 +2,7 @@ package neofontrender.core.font.support;
 
 import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
-import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL20;
@@ -45,17 +45,17 @@ public final class FontRenderPipeline {
         State state = new State();
         state.capture();
 
-        GlStateManager.enableTexture2D();
-        GlStateManager.enableAlpha();
-        GlStateManager.enableBlend();
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_ALPHA_TEST);
+        GL11.glEnable(GL11.GL_BLEND);
         if (premultiplied) {
-            GlStateManager.tryBlendFuncSeparate(
+            OpenGlHelper.glBlendFunc(
                     GL11.GL_ONE,
                     GL11.GL_ONE_MINUS_SRC_ALPHA,
                     GL11.GL_ONE,
                     GL11.GL_ZERO);
         } else {
-            GlStateManager.tryBlendFuncSeparate(
+            OpenGlHelper.glBlendFunc(
                     GL11.GL_SRC_ALPHA,
                     GL11.GL_ONE_MINUS_SRC_ALPHA,
                     GL11.GL_ONE,
@@ -223,18 +223,17 @@ public final class FontRenderPipeline {
             if (shaderChanged) {
                 GL20.glUseProgram(previousProgram);
             }
-            // GlStateManager caches blend factors in 1.12. Restoring through raw GL would make its
-            // cache disagree with the driver and cause the next premultiplied draw to use SRC_ALPHA.
-            GlStateManager.tryBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            OpenGlHelper.glBlendFunc(srcRgb, dstRgb, srcAlpha, dstAlpha);
             if (!blendEnabled) {
-                GlStateManager.disableBlend();
+                GL11.glDisable(GL11.GL_BLEND);
             }
         }
 
         private static int getInteger(int key, int fallback) {
             try {
                 return GL11.glGetInteger(key);
-            } catch (RuntimeException | LinkageError ignored) {
+            } catch (RuntimeException | LinkageError error) {
+                NeoFontRender.LOGGER.debug("Unable to query OpenGL state 0x{}", Integer.toHexString(key), error);
                 return fallback;
             }
         }

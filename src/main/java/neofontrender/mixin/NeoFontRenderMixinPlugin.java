@@ -1,8 +1,11 @@
 package neofontrender.mixin;
 
+import net.minecraft.launchwrapper.Launch;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
-import org.objectweb.asm.tree.ClassNode;
+import org.spongepowered.asm.lib.tree.ClassNode;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +19,8 @@ import java.util.Set;
  * target bytecode entirely when both options are disabled.
  */
 public final class NeoFontRenderMixinPlugin implements IMixinConfigPlugin {
+    private static final Logger LOGGER = LogManager.getLogger("NeoFontRender Mixin Plugin");
+
     private boolean signMixinEnabled = true;
     private boolean signDispatcherMixinEnabled = true;
 
@@ -98,8 +103,8 @@ public final class NeoFontRenderMixinPlugin implements IMixinConfigPlugin {
                     blockOcclusionCulling = parseBoolean(line, blockOcclusionCulling);
                 }
             }
-        } catch (Throwable ignored) {
-            // Keep the default-on behavior if the file cannot be read during early Mixin loading.
+        } catch (Exception e) {
+            LOGGER.error("Failed to read sign options from " + config + "; keeping sign optimizations enabled", e);
             return new SignOptions(true, true);
         }
         return new SignOptions(lod || batching || frustum || modelLod || crossTileBatching
@@ -127,15 +132,16 @@ public final class NeoFontRenderMixinPlugin implements IMixinConfigPlugin {
     }
 
     private static File gameDirectory() {
-        try {
-            Class<?> launch = Class.forName("net.minecraft.launchwrapper.Launch");
-            Object home = launch.getField("minecraftHome").get(null);
-            if (home instanceof File) {
-                return (File) home;
-            }
-        } catch (Throwable ignored) {
+        if (Launch.minecraftHome != null) {
+            return Launch.minecraftHome;
         }
-        return new File(System.getProperty("user.dir", "."));
+        LOGGER.warn("Launch.minecraftHome is unavailable during early Mixin loading; falling back to user.dir");
+        try {
+            return new File(System.getProperty("user.dir", "."));
+        } catch (SecurityException e) {
+            LOGGER.error("Unable to read user.dir; falling back to the current working directory", e);
+            return new File(".");
+        }
     }
 
     private static final class SignOptions {

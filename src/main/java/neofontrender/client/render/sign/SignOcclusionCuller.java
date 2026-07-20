@@ -1,12 +1,11 @@
 package neofontrender.client.render.sign;
 
 import net.minecraft.block.Block;
-import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.Minecraft;
 import net.minecraft.init.Blocks;
 import net.minecraft.tileentity.TileEntitySign;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.RayTraceResult;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
 import neofontrender.core.config.NeofontrenderConfig;
 
@@ -18,7 +17,7 @@ import java.util.Map;
  * frames; stale or ambiguous results retain the sign so this optimization cannot create hard pops.
  */
 public final class SignOcclusionCuller {
-    private static final Map<BlockPos, Record> CACHE = new HashMap<>();
+    private static final Map<Long, Record> CACHE = new HashMap<>();
     private static World currentWorld;
     private static long frameToken;
     private static int checksRemaining;
@@ -51,17 +50,20 @@ public final class SignOcclusionCuller {
         if (!NeofontrenderConfig.signBlockOcclusionCulling() || sign == null || world == null) {
             return false;
         }
-        BlockPos pos = sign.getPos();
-        double dx = pos.getX() + 0.5D - cameraX;
-        double dy = pos.getY() + 0.75D - cameraY;
-        double dz = pos.getZ() + 0.5D - cameraZ;
+        int posX = sign.xCoord;
+        int posY = sign.yCoord;
+        int posZ = sign.zCoord;
+        double dx = posX + 0.5D - cameraX;
+        double dy = posY + 0.75D - cameraY;
+        double dz = posZ + 0.5D - cameraZ;
         float minDistance = NeofontrenderConfig.signOcclusionMinDistance();
         if (dx * dx + dy * dy + dz * dz < minDistance * minDistance) {
             return false;
         }
 
-        long now = net.minecraft.client.Minecraft.getSystemTime();
-        Record record = CACHE.get(pos);
+        long now = Minecraft.getSystemTime();
+        long key = key(posX, posY, posZ);
+        Record record = CACHE.get(key);
         long ttl = NeofontrenderConfig.signOcclusionCacheMillis();
         if (record != null && now - record.checkedAt <= ttl
                 && record.cameraDistanceSq(cameraX, cameraY, cameraZ) <= 0.25D) {
@@ -80,8 +82,8 @@ public final class SignOcclusionCuller {
 
         checksRemaining--;
         testedThisFrame++;
-        boolean occluded = testBoard(sign, world, new Vec3d(cameraX, cameraY, cameraZ));
-        CACHE.put(pos.toImmutable(), new Record(occluded, now, cameraX, cameraY, cameraZ, frameToken));
+        boolean occluded = testBoard(sign, world, Vec3.createVectorHelper(cameraX, cameraY, cameraZ));
+        CACHE.put(key, new Record(occluded, now, cameraX, cameraY, cameraZ, frameToken));
         if (occluded) {
             culledThisFrame++;
         }
@@ -93,56 +95,63 @@ public final class SignOcclusionCuller {
                 + " culled=" + culledThisFrame + " budget_miss=" + budgetMissesThisFrame;
     }
 
-    private static boolean testBoard(TileEntitySign sign, World world, Vec3d camera) {
+    private static boolean testBoard(TileEntitySign sign, World world, Vec3 camera) {
         Block block = sign.getBlockType();
-        boolean standing = block == Blocks.STANDING_SIGN;
+        boolean standing = block == Blocks.standing_sign;
         float rotation = rotationDegrees(standing, sign.getBlockMetadata());
         double radians = Math.toRadians(-rotation);
         double sin = Math.sin(radians);
         double cos = Math.cos(radians);
         double localY = standing ? 0.833333D : 0.520833D;
         double localZ = standing ? 0.046667D : -0.390833D;
-        double centerX = sign.getPos().getX() + 0.5D + sin * localZ;
-        double centerY = sign.getPos().getY() + localY;
-        double centerZ = sign.getPos().getZ() + 0.5D + cos * localZ;
+        double centerX = sign.xCoord + 0.5D + sin * localZ;
+        double centerY = sign.yCoord + localY;
+        double centerZ = sign.zCoord + 0.5D + cos * localZ;
         double axisX = cos * 0.46D;
         double axisZ = -sin * 0.46D;
-        Vec3d[] samples = {
-                new Vec3d(centerX, centerY, centerZ),
-                new Vec3d(centerX + axisX, centerY + 0.24D, centerZ + axisZ),
-                new Vec3d(centerX - axisX, centerY + 0.24D, centerZ - axisZ),
-                new Vec3d(centerX + axisX, centerY - 0.24D, centerZ + axisZ),
-                new Vec3d(centerX - axisX, centerY - 0.24D, centerZ - axisZ)
+        Vec3[] samples = {
+                Vec3.createVectorHelper(centerX, centerY, centerZ),
+                Vec3.createVectorHelper(centerX + axisX, centerY + 0.24D, centerZ + axisZ),
+                Vec3.createVectorHelper(centerX - axisX, centerY + 0.24D, centerZ - axisZ),
+                Vec3.createVectorHelper(centerX + axisX, centerY - 0.24D, centerZ + axisZ),
+                Vec3.createVectorHelper(centerX - axisX, centerY - 0.24D, centerZ - axisZ)
         };
-        for (Vec3d target : samples) {
-            if (!isBlockedByOpaqueCube(world, camera, target, sign.getPos())) {
+        for (Vec3 target : samples) {
+            if (!isBlockedByOpaqueCube(world, camera, target, sign.xCoord, sign.yCoord, sign.zCoord)) {
                 return false;
             }
         }
         return true;
     }
 
-    private static boolean isBlockedByOpaqueCube(World world, Vec3d start, Vec3d target,
-                                                  BlockPos signPos) {
-        Vec3d delta = target.subtract(start);
-        double length = Math.sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
+    private static boolean isBlockedByOpaqueCube(World world, Vec3 start, Vec3 target,
+                                                  int signX, int signY, int signZ) {
+        Vec3 delta = target.subtract(start);
+        double length = Math.sqrt(delta.xCoord * delta.xCoord + delta.yCoord * delta.yCoord
+                + delta.zCoord * delta.zCoord);
         if (length <= 0.2D) {
             return false;
         }
-        Vec3d direction = delta.scale(1.0D / length);
-        Vec3d end = target.subtract(direction.scale(0.12D));
-        Vec3d cursor = start;
+        double inverseLength = 1.0D / length;
+        Vec3 direction = Vec3.createVectorHelper(
+                delta.xCoord * inverseLength,
+                delta.yCoord * inverseLength,
+                delta.zCoord * inverseLength);
+        Vec3 end = target.subtract(Vec3.createVectorHelper(
+                direction.xCoord * 0.12D,
+                direction.yCoord * 0.12D,
+                direction.zCoord * 0.12D));
+        Vec3 cursor = start;
         for (int i = 0; i < 24; i++) {
-            RayTraceResult hit = world.rayTraceBlocks(cursor, end, false, true, false);
-            if (hit == null || hit.typeOfHit != RayTraceResult.Type.BLOCK || hit.getBlockPos() == null) {
+            MovingObjectPosition hit = world.func_147447_a(cursor, end, false, true, false);
+            if (hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) {
                 return false;
             }
-            BlockPos hitPos = hit.getBlockPos();
-            if (hitPos.equals(signPos)) {
+            if (hit.blockX == signX && hit.blockY == signY && hit.blockZ == signZ) {
                 return false;
             }
-            IBlockState state = world.getBlockState(hitPos);
-            if (state.isOpaqueCube()) {
+            Block block = world.getBlock(hit.blockX, hit.blockY, hit.blockZ);
+            if (block.isOpaqueCube()) {
                 return true;
             }
             if (hit.hitVec == null || hit.hitVec.squareDistanceTo(end) < 0.0004D) {
@@ -150,9 +159,14 @@ public final class SignOcclusionCuller {
             }
             // Continue through glass, foliage and partial geometry; only a full opaque cube is a
             // sufficiently stable reason to skip the complete renderer.
-            cursor = hit.hitVec.add(direction.scale(0.01D));
+            cursor = hit.hitVec.addVector(direction.xCoord * 0.01D, direction.yCoord * 0.01D,
+                    direction.zCoord * 0.01D);
         }
         return false;
+    }
+
+    private static long key(int x, int y, int z) {
+        return ((long) x & 0x3FFFFFFL) << 38 | ((long) z & 0x3FFFFFFL) << 12 | (y & 0xFFFL);
     }
 
     private static float rotationDegrees(boolean standing, int metadata) {

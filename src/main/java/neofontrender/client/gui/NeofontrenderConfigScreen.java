@@ -24,12 +24,14 @@ import com.cleanroommc.modularui.widget.scroll.VerticalScrollData;
 import com.cleanroommc.modularui.widgets.SliderWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
+import cpw.mods.fml.common.Loader;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
+import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.resources.I18n;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
-import net.minecraftforge.fml.common.Loader;
+import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
 import neofontrender.core.font.FontManager;
 import neofontrender.core.font.skia.SkijaRuntimeSupport;
@@ -70,7 +72,7 @@ public final class NeofontrenderConfigScreen {
     private static final int PAGE_ABOUT = 6;
     private static final int PAGE_LICENSES = 7;
 
-    private static net.minecraft.client.gui.GuiScreen returnScreen;
+    private static GuiScreen returnScreen;
 
     private NeofontrenderConfigScreen() {
     }
@@ -79,13 +81,13 @@ public final class NeofontrenderConfigScreen {
         open(null);
     }
 
-    public static void open(net.minecraft.client.gui.GuiScreen parent) {
+    public static void open(GuiScreen parent) {
         returnScreen = parent;
         openMain(new Staged());
     }
 
     private static void closeToParent() {
-        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getMinecraft();
         if (returnScreen != null) {
             mc.displayGuiScreen(returnScreen);
         } else {
@@ -117,7 +119,7 @@ public final class NeofontrenderConfigScreen {
         @Override
         public void drawScreen() {
             Minecraft mc = Minecraft.getMinecraft();
-            if (mc.world == null && returnScreen != null) {
+            if (mc.theWorld == null && returnScreen != null) {
                 // Vanilla settings screens render only their background stage. Repainting the
                 // whole parent screen here leaves its buttons ghosted behind this UI.
                 returnScreen.drawDefaultBackground();
@@ -145,7 +147,7 @@ public final class NeofontrenderConfigScreen {
     }
 
     private static void configureRootBackground(ModularPanel panel) {
-        if (Minecraft.getMinecraft().world == null) {
+        if (Minecraft.getMinecraft().theWorld == null) {
             // Vanilla menu screens already paint their own background. Keep the full-screen dimmer
             // only in world, where it separates the settings from the moving scene behind it.
             panel.disableThemeBackground(true);
@@ -498,7 +500,7 @@ public final class NeofontrenderConfigScreen {
                 Desktop.getDesktop().open(dir);
             }
         } catch (IOException | RuntimeException e) {
-            neofontrender.NeoFontRender.LOGGER.error("Failed to open font folder '{}'", dir, e);
+            NeoFontRender.LOGGER.error("Failed to open font folder '{}'", dir, e);
         }
     }
 
@@ -942,7 +944,7 @@ public final class NeofontrenderConfigScreen {
         }
 
         private static FieldBlock cosmicFaceField(String label, Supplier<String> getter,
-                                                  java.util.function.Consumer<String> setter) {
+                                                  Consumer<String> setter) {
             return new FieldBlock(tr(label), new TextFieldWidget()
                     .setMaxLength(512)
                     .value(new StringValue(getter, setter)));

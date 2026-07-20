@@ -1,8 +1,6 @@
 package neofontrender.core.font.awt;
 
-import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.ResourceLocation;
 import neofontrender.core.font.support.FontRenderPipeline;
 import neofontrender.core.font.support.FontRenderTuning;
@@ -11,7 +9,7 @@ import neofontrender.core.font.support.FontRenderTuning;
  * A glyph that has been uploaded to a texture atlas and can be rendered with a single quad.
  *
  * <p>Equivalent to 1.20.1 {@code net.minecraft.client.gui.font.glyphs.BakedGlyph},
- * but uses 1.12.2 {@link Tessellator} instead of {@code VertexConsumer}.</p>
+ * but uses 1.7.10 {@link Tessellator} instead of {@code VertexConsumer}.</p>
  */
 public class BakedGlyph {
 
@@ -73,27 +71,13 @@ public class BakedGlyph {
         // Do not inherit the Skia/Cosmic premultiplied preference here: GL_ONE blending makes
         // low-coverage white edge texels contribute at full strength and produces a bright halo.
         try (FontRenderPipeline.State ignored = FontRenderPipeline.begin(rasterScale, false)) {
-            Tessellator tessellator = Tessellator.getInstance();
-            BufferBuilder buffer = tessellator.getBuffer();
-            buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
-
-            buffer.pos(f + slant0, f4, 0.0D)
-                  .tex(this.u0, this.v0)
-                  .color(red, green, blue, alpha)
-                  .endVertex();
-            buffer.pos(f + slant1, f5, 0.0D)
-                  .tex(this.u0, this.v1)
-                  .color(red, green, blue, alpha)
-                  .endVertex();
-            buffer.pos(f1 + slant1, f5, 0.0D)
-                  .tex(this.u1, this.v1)
-                  .color(red, green, blue, alpha)
-                  .endVertex();
-            buffer.pos(f1 + slant0, f4, 0.0D)
-                  .tex(this.u1, this.v0)
-                  .color(red, green, blue, alpha)
-                  .endVertex();
-
+            Tessellator tessellator = Tessellator.instance;
+            tessellator.startDrawingQuads();
+            tessellator.setColorRGBA_F(red, green, blue, alpha);
+            tessellator.addVertexWithUV(f + slant0, f4, 0.0D, this.u0, this.v0);
+            tessellator.addVertexWithUV(f + slant1, f5, 0.0D, this.u0, this.v1);
+            tessellator.addVertexWithUV(f1 + slant1, f5, 0.0D, this.u1, this.v1);
+            tessellator.addVertexWithUV(f1 + slant0, f4, 0.0D, this.u1, this.v0);
             tessellator.draw();
         }
     }
@@ -113,27 +97,13 @@ public class BakedGlyph {
      */
     public void renderEffect(float x0, float y0, float x1, float y1, float depth,
                              float red, float green, float blue, float alpha) {
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
-
-        buffer.pos(x0, y0, depth)
-              .tex(this.u0, this.v0)
-              .color(red, green, blue, alpha)
-              .endVertex();
-        buffer.pos(x0, y1, depth)
-              .tex(this.u0, this.v1)
-              .color(red, green, blue, alpha)
-              .endVertex();
-        buffer.pos(x1, y1, depth)
-              .tex(this.u1, this.v1)
-              .color(red, green, blue, alpha)
-              .endVertex();
-        buffer.pos(x1, y0, depth)
-              .tex(this.u1, this.v0)
-              .color(red, green, blue, alpha)
-              .endVertex();
-
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
+        tessellator.setColorRGBA_F(red, green, blue, alpha);
+        tessellator.addVertexWithUV(x0, y0, depth, this.u0, this.v0);
+        tessellator.addVertexWithUV(x0, y1, depth, this.u0, this.v1);
+        tessellator.addVertexWithUV(x1, y1, depth, this.u1, this.v1);
+        tessellator.addVertexWithUV(x1, y0, depth, this.u1, this.v0);
         tessellator.draw();
     }
 }

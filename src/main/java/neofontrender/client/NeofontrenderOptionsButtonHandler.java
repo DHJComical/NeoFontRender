@@ -5,7 +5,7 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiOptions;
 import net.minecraft.client.resources.I18n;
 import net.minecraftforge.client.event.GuiScreenEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import neofontrender.client.gui.NeofontrenderConfigScreen;
 
 import java.util.List;
@@ -23,12 +23,13 @@ public final class NeofontrenderOptionsButtonHandler {
     private static final int ROW_SPACING = 24;
 
     @SubscribeEvent
+    @SuppressWarnings("unchecked")
     public void onInitGui(GuiScreenEvent.InitGuiEvent.Post event) {
-        if (!(event.getGui() instanceof GuiOptions)) {
+        if (!(event.gui instanceof GuiOptions)) {
             return;
         }
-        GuiOptions gui = (GuiOptions) event.getGui();
-        List<GuiButton> buttons = event.getButtonList();
+        GuiOptions gui = (GuiOptions) event.gui;
+        List<GuiButton> buttons = event.buttonList;
 
         int leftX = gui.width / 2 - 155;
         int rightX = gui.width / 2 + 5;
@@ -67,7 +68,7 @@ public final class NeofontrenderOptionsButtonHandler {
 
     private static boolean isOccupied(List<GuiButton> buttons, int x, int y) {
         for (GuiButton button : buttons) {
-            if (button.x == x && button.y == y) {
+            if (button.xPosition == x && button.yPosition == y) {
                 return true;
             }
         }
@@ -76,10 +77,10 @@ public final class NeofontrenderOptionsButtonHandler {
 
     @SubscribeEvent
     public void onActionPerformed(GuiScreenEvent.ActionPerformedEvent.Pre event) {
-        if (!(event.getGui() instanceof GuiOptions)) {
+        if (!(event.gui instanceof GuiOptions)) {
             return;
         }
-        GuiButton button = event.getButton();
+        GuiButton button = event.button;
         if (button.enabled && button.id == BUTTON_ID) {
             NeofontrenderConfigScreen.open(Minecraft.getMinecraft().currentScreen);
             event.setCanceled(true);

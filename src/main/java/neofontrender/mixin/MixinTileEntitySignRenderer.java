@@ -2,14 +2,10 @@ package neofontrender.mixin;
 
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.model.ModelSign;
-import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GLAllocation;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.tileentity.TileEntitySignRenderer;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.tileentity.TileEntitySign;
-import net.minecraft.util.math.AxisAlignedBB;
 import neofontrender.client.render.sign.SignBatchRenderer;
 import neofontrender.core.config.NeofontrenderConfig;
 import neofontrender.core.font.FontManager;
@@ -38,37 +34,19 @@ public abstract class MixinTileEntitySignRenderer {
     @Unique private double nfr$distanceSq;
     @Unique private int nfr$destroyStage;
 
-    @Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderTileEntityAt", at = @At("HEAD"), cancellable = true)
     private void nfr$cullSignModel(TileEntitySign sign, double x, double y, double z,
-                                   float partialTicks, int destroyStage, float alpha,
-                                   CallbackInfo ci) {
+                                   float partialTicks, CallbackInfo ci) {
         nfr$distanceSq = x * x + y * y + z * z;
-        nfr$destroyStage = destroyStage;
-        if (SignBatchRenderer.collect(sign, x, y, z, destroyStage)) {
+        nfr$destroyStage = -1;
+        if (SignBatchRenderer.collect(sign, x, y, z, -1)) {
             ci.cancel();
             return;
-        }
-        if (!NeofontrenderConfig.signTextFrustumCulling()) {
-            return;
-        }
-        // Dispatcher coordinates are the camera-relative block origin, while vanilla translates
-        // the model to the block center (x/z + 0.5) before rotating it. The old box was centered on
-        // the origin and therefore sat half a block too far toward negative X/Z, culling a visible
-        // edge for signs near the right/top frustum planes. A standing sign's rotated 1-block-wide
-        // board reaches about 0.71 blocks from center; 0.85 also covers its depth and wall offset.
-        Frustum frustum = new Frustum();
-        frustum.setPosition(0.0D, 0.0D, 0.0D);
-        double centerX = x + 0.5D;
-        double centerZ = z + 0.5D;
-        AxisAlignedBB bounds = new AxisAlignedBB(centerX - 0.85D, y - 0.15D, centerZ - 0.85D,
-                centerX + 0.85D, y + 1.20D, centerZ + 0.85D);
-        if (!frustum.isBoundingBoxInFrustum(bounds)) {
-            ci.cancel();
         }
     }
 
     @Redirect(
-            method = "render",
+            method = "renderTileEntityAt",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/ModelSign;renderSign()V")
     )
     private void nfr$renderSignModelLod(ModelSign model) {
@@ -95,17 +73,16 @@ public abstract class MixinTileEntitySignRenderer {
     private static int nfr$compileSignLod(boolean standing) {
         int list = GLAllocation.generateDisplayLists(1);
         GL11.glNewList(list, GL11.GL_COMPILE);
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX_NORMAL);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
         // ModelSign's board front/back occupy these regions in the currently bound 64x32
         // resource-pack texture. Keeping its UVs avoids manufacturing or caching a second texture.
-        nfr$quad(buffer, -0.75F, -0.875F, -0.0625F, 0.75F, -0.125F,
+        nfr$quad(tessellator, -0.75F, -0.875F, -0.0625F, 0.75F, -0.125F,
                 2.0F / 64.0F, 2.0F / 32.0F, 26.0F / 64.0F, 14.0F / 32.0F, -1.0F);
-        nfr$quad(buffer, 0.75F, -0.875F, 0.0625F, -0.75F, -0.125F,
+        nfr$quad(tessellator, 0.75F, -0.875F, 0.0625F, -0.75F, -0.125F,
                 28.0F / 64.0F, 2.0F / 32.0F, 52.0F / 64.0F, 14.0F / 32.0F, 1.0F);
         if (standing) {
-            nfr$quad(buffer, -0.0625F, -0.125F, -0.0625F, 0.0625F, 0.75F,
+            nfr$quad(tessellator, -0.0625F, -0.125F, -0.0625F, 0.0625F, 0.75F,
                     2.0F / 64.0F, 16.0F / 32.0F, 4.0F / 64.0F, 30.0F / 32.0F, -1.0F);
         }
         tessellator.draw();
@@ -114,17 +91,18 @@ public abstract class MixinTileEntitySignRenderer {
     }
 
     @Unique
-    private static void nfr$quad(BufferBuilder buffer, float left, float top, float z,
+    private static void nfr$quad(Tessellator tessellator, float left, float top, float z,
                                  float right, float bottom, float u0, float v0, float u1, float v1,
                                  float normalZ) {
-        buffer.pos(left, top, z).tex(u0, v0).normal(0.0F, 0.0F, normalZ).endVertex();
-        buffer.pos(left, bottom, z).tex(u0, v1).normal(0.0F, 0.0F, normalZ).endVertex();
-        buffer.pos(right, bottom, z).tex(u1, v1).normal(0.0F, 0.0F, normalZ).endVertex();
-        buffer.pos(right, top, z).tex(u1, v0).normal(0.0F, 0.0F, normalZ).endVertex();
+        tessellator.setNormal(0.0F, 0.0F, normalZ);
+        tessellator.addVertexWithUV(left, top, z, u0, v0);
+        tessellator.addVertexWithUV(left, bottom, z, u0, v1);
+        tessellator.addVertexWithUV(right, bottom, z, u1, v1);
+        tessellator.addVertexWithUV(right, top, z, u1, v0);
     }
 
     @Redirect(
-            method = "render",
+            method = "renderTileEntityAt",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/client/gui/FontRenderer;drawString(Ljava/lang/String;III)I"
@@ -164,17 +142,17 @@ public abstract class MixinTileEntitySignRenderer {
 
     /** Draw once, while TileEntitySignRenderer's sign transform is still active. */
     @Inject(
-            method = "render",
+            method = "renderTileEntityAt",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/renderer/GlStateManager;depthMask(Z)V",
+                    target = "Lorg/lwjgl/opengl/GL11;glDepthMask(Z)V",
+                    remap = false,
                     ordinal = 1,
                     shift = At.Shift.BEFORE
             )
     )
     private void nfr$flushBatchedSignText(TileEntitySign sign, double x, double y, double z,
-                                          float partialTicks, int destroyStage, float alpha,
-                                          CallbackInfo ci) {
+                                          float partialTicks, CallbackInfo ci) {
         Capture capture = CAPTURE.get();
         if (capture == null) {
             return;

@@ -1,11 +1,9 @@
 package neofontrender.core.font.cosmic;
 
-import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.resources.IResource;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
@@ -443,7 +441,7 @@ public final class CosmicTextRenderer implements TextRenderBackend {
             if (location == null || texture == null || width <= 0.0F || height <= 0.0F) {
                 return;
             }
-            net.minecraft.client.Minecraft.getMinecraft().getTextureManager().bindTexture(location);
+            Minecraft.getMinecraft().getTextureManager().bindTexture(location);
             FontRenderTuning.applyBoundTextureFilter(scale, false);
             // DynamicTexture inherits GL_REPEAT. Cosmic rasters are line textures rather than an
             // atlas, so repeating the first row at v=1 creates bright specks below glyphs when
@@ -451,22 +449,22 @@ public final class CosmicTextRenderer implements TextRenderBackend {
             // currently bound texture parameters between cached draws.
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
-            GlStateManager.enableTexture2D();
-            GlStateManager.enableAlpha();
-            GlStateManager.color(1.0F, 1.0F, 1.0F, alpha);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_ALPHA_TEST);
+            GL11.glColor4f(1.0F, 1.0F, 1.0F, alpha);
             float left = FontRenderTuning.alignToPixel(x + offsetX);
             float top = FontRenderTuning.alignToPixel(y + offsetY);
             // Cosmic textures are premultiplied in Rust before GL_LINEAR minification. Force the
             // matching blend function here because surrounding mods frequently leave Minecraft's
             // cached blend state configured for straight-alpha GUI textures.
             try (PremultipliedBlendState ignored = new PremultipliedBlendState()) {
-                Tessellator tessellator = Tessellator.getInstance();
-                BufferBuilder buffer = tessellator.getBuffer();
-                buffer.begin(7, DefaultVertexFormats.POSITION_TEX_COLOR);
-                buffer.pos(left, top, 0).tex(0, 0).color(1, 1, 1, alpha).endVertex();
-                buffer.pos(left, top + height, 0).tex(0, 1).color(1, 1, 1, alpha).endVertex();
-                buffer.pos(left + width, top + height, 0).tex(1, 1).color(1, 1, 1, alpha).endVertex();
-                buffer.pos(left + width, top, 0).tex(1, 0).color(1, 1, 1, alpha).endVertex();
+                Tessellator tessellator = Tessellator.instance;
+                tessellator.startDrawingQuads();
+                tessellator.setColorRGBA_F(1.0F, 1.0F, 1.0F, alpha);
+                tessellator.addVertexWithUV(left, top, 0.0D, 0.0D, 0.0D);
+                tessellator.addVertexWithUV(left, top + height, 0.0D, 0.0D, 1.0D);
+                tessellator.addVertexWithUV(left + width, top + height, 0.0D, 1.0D, 1.0D);
+                tessellator.addVertexWithUV(left + width, top, 0.0D, 1.0D, 0.0D);
                 tessellator.draw();
             }
         }
@@ -474,7 +472,7 @@ public final class CosmicTextRenderer implements TextRenderBackend {
         @Override
         public void close() {
             if (location != null) {
-                net.minecraft.client.Minecraft.getMinecraft().getTextureManager().deleteTexture(location);
+                Minecraft.getMinecraft().getTextureManager().deleteTexture(location);
             }
         }
     }
@@ -521,17 +519,16 @@ public final class CosmicTextRenderer implements TextRenderBackend {
         private final int dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
 
         private PremultipliedBlendState() {
-            GlStateManager.enableBlend();
-            GlStateManager.tryBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA,
+            GL11.glEnable(GL11.GL_BLEND);
+            GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA,
                     GL11.GL_ONE, GL11.GL_ZERO);
         }
 
         @Override
         public void close() {
-            // Restore via GlStateManager so its 1.12-era state cache stays synchronized with GL.
-            GlStateManager.tryBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            GL14.glBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
             if (!blendEnabled) {
-                GlStateManager.disableBlend();
+                GL11.glDisable(GL11.GL_BLEND);
             }
         }
     }

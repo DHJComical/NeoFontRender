@@ -105,8 +105,8 @@ public final class CosmicRuntimeSupport {
                         return "musl";
                     }
                 }
-            } catch (IOException ignored) {
-                // Fall through to loader probing.
+            } catch (IOException error) {
+                NeoFontRender.LOGGER.debug("Unable to inspect /proc/self/maps for the Linux libc", error);
             }
         }
 

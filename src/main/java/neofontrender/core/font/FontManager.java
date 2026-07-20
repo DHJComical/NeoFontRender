@@ -1,11 +1,11 @@
 package neofontrender.core.font;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.ITextureObject;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.client.resources.IResourceManager;
 import net.minecraft.util.ResourceLocation;
+import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
 import neofontrender.core.font.awt.FontSet;
 import neofontrender.core.font.awt.FontTexture;
@@ -18,6 +18,7 @@ import neofontrender.core.font.cosmic.CosmicTextRenderer;
 import neofontrender.core.font.support.FontRenderTuning;
 import neofontrender.core.font.skia.SkijaRuntimeSupport;
 import neofontrender.core.font.skia.SkijaTextRenderer;
+import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,7 @@ import java.util.List;
  * Top-level manager for the replacement font system.
  * Holds the default {@link FontSet} and handles (re)loading.
  *
- * <p>Equivalent to 1.20.1 {@code net.minecraft.client.gui.font.FontManager}.</p>
+ * <p>Equivalent to the modern Minecraft font manager.</p>
  */
 public class FontManager implements AutoCloseable {
 
@@ -70,7 +71,7 @@ public class FontManager implements AutoCloseable {
         if (preferSkia) {
             SkijaRuntimeSupport.Compatibility compatibility = SkijaRuntimeSupport.checkCompatibility();
             if (!compatibility.isSupported()) {
-                neofontrender.NeoFontRender.LOGGER.warn("Skija renderer disabled: {}. Falling back to vanilla font renderer",
+                NeoFontRender.LOGGER.warn("Skija renderer disabled: {}. Falling back to vanilla font renderer",
                         compatibility.getMessage());
                 // A missing optional Skija add-on should be obvious. Silently selecting AWT or
                 // Cosmic makes a stale `rendering.engine=skia` config look successful and hides a
@@ -90,13 +91,13 @@ public class FontManager implements AutoCloseable {
                     this.skiaActive = this.textRenderBackend.isReady();
                     this.active = false;
                     this.backendVersion = "Skija " + compatibility.getMessage();
-                    neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with Skija renderer ({})", compatibility.getMessage());
+                    NeoFontRender.LOGGER.info("FontManager reloaded with Skija renderer ({})", compatibility.getMessage());
                     return;
                 } catch (Throwable t) {
                     this.textRenderBackend = null;
                     this.skiaActive = false;
                     this.backendVersion = "vanilla Minecraft font renderer";
-                    neofontrender.NeoFontRender.LOGGER.error(
+                    NeoFontRender.LOGGER.error(
                             "Failed to initialize Skija renderer ({}); falling back to vanilla font renderer",
                             compatibility.getMessage(),
                             t);
@@ -110,7 +111,7 @@ public class FontManager implements AutoCloseable {
         if (preferCosmic) {
             CosmicRuntimeSupport.Compatibility compatibility = CosmicRuntimeSupport.ensureLoaded();
             if (!compatibility.isSupported()) {
-                neofontrender.NeoFontRender.LOGGER.warn("Cosmic renderer disabled: {}. Falling back to AWT font renderer",
+                NeoFontRender.LOGGER.warn("Cosmic renderer disabled: {}. Falling back to AWT font renderer",
                         compatibility.getMessage());
             } else {
                 try {
@@ -122,7 +123,7 @@ public class FontManager implements AutoCloseable {
                     this.skiaActive = false;
                     this.active = false;
                     this.backendVersion = compatibility.getMessage();
-                    neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with Cosmic renderer ({})",
+                    NeoFontRender.LOGGER.info("FontManager reloaded with Cosmic renderer ({})",
                             compatibility.getMessage());
                     return;
                 } catch (Throwable t) {
@@ -130,7 +131,7 @@ public class FontManager implements AutoCloseable {
                     // must not prevent Minecraft from reaching its resource reload fallback path.
                     this.textRenderBackend = null;
                     this.cosmicActive = false;
-                    neofontrender.NeoFontRender.LOGGER.error(
+                    NeoFontRender.LOGGER.error(
                             "Failed to initialize Cosmic renderer ({}); falling back to AWT font renderer",
                             compatibility.getMessage(), t);
                 }
@@ -145,16 +146,16 @@ public class FontManager implements AutoCloseable {
             try {
                 AwtTtfGlyphProvider ttf = loadAwtFont(resourceManager, fontName, rasterScale, false);
                 if (ttf == null) {
-                    neofontrender.NeoFontRender.LOGGER.warn("Skipped unavailable fallback font '{}'", fontName);
+                    NeoFontRender.LOGGER.warn("Skipped unavailable fallback font '{}'", fontName);
                     continue;
                 }
                 providers.add(ttf);
                 ttfLoaded = true;
-                neofontrender.NeoFontRender.LOGGER.info("Loaded AWT font '{}' (size={}, oversample={} effective={}, autoBaseline={}, baselineShift={})",
+                NeoFontRender.LOGGER.info("Loaded AWT font '{}' (size={}, oversample={} effective={}, autoBaseline={}, baselineShift={})",
                         fontName, NeofontrenderConfig.fontSize(), NeofontrenderConfig.fontOversample(), rasterScale,
                         NeofontrenderConfig.fontAutoBaseline(), NeofontrenderConfig.fontBaselineShift());
             } catch (Exception e) {
-                neofontrender.NeoFontRender.LOGGER.error("Failed to load font '{}'", fontName, e);
+                NeoFontRender.LOGGER.error("Failed to load font '{}'", fontName, e);
             }
         }
 
@@ -164,15 +165,15 @@ public class FontManager implements AutoCloseable {
                 if (ttf != null) {
                     providers.add(ttf);
                     ttfLoaded = true;
-                    neofontrender.NeoFontRender.LOGGER.warn("No configured font loaded; using SansSerif fallback");
+                    NeoFontRender.LOGGER.warn("No configured font loaded; using SansSerif fallback");
                 }
             } catch (Exception e) {
-                neofontrender.NeoFontRender.LOGGER.error("Failed to load default SansSerif fallback", e);
+                NeoFontRender.LOGGER.error("Failed to load default SansSerif fallback", e);
             }
         }
 
         if (!ttfLoaded) {
-            neofontrender.NeoFontRender.LOGGER.warn("No TTF font loaded; keeping vanilla rendering");
+            NeoFontRender.LOGGER.warn("No TTF font loaded; keeping vanilla rendering");
             this.active = false;
             this.backendVersion = "vanilla Minecraft font renderer";
             return;
@@ -180,7 +181,7 @@ public class FontManager implements AutoCloseable {
 
         providers.add(new MissingGlyphProvider());
 
-        FontTexture atlas = new FontTexture(textureManager, new net.minecraft.util.ResourceLocation("neofontrender", "default"),
+        FontTexture atlas = new FontTexture(textureManager, new ResourceLocation("neofontrender", "default"),
                 rasterScale * FontRenderTuning.textureScale(rasterScale));
         this.defaultFontSet = new FontSet(providers, atlas);
         if (NeofontrenderConfig.performancePrewarmBasicLatin()) {
@@ -191,9 +192,9 @@ public class FontManager implements AutoCloseable {
         this.cosmicActive = false;
         this.backendVersion = "AWT Java2D font renderer";
         if (preferSkia || preferCosmic) {
-            neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with {} AWT providers after native backend fallback", providers.size());
+            NeoFontRender.LOGGER.info("FontManager reloaded with {} AWT providers after native backend fallback", providers.size());
         } else {
-            neofontrender.NeoFontRender.LOGGER.info("FontManager reloaded with {} providers", providers.size());
+            NeoFontRender.LOGGER.info("FontManager reloaded with {} providers", providers.size());
         }
     }
 
@@ -229,7 +230,9 @@ public class FontManager implements AutoCloseable {
         }
         ITextureObject texture = textureManager.getTexture(location);
         if (texture instanceof AbstractTexture) {
-            ((AbstractTexture) texture).setBlurMipmap(false, false);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture.getGlTextureId());
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
         }
     }
 

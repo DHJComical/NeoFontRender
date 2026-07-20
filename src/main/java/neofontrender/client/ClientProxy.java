@@ -3,9 +3,9 @@ package neofontrender.client;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLPostInitializationEvent;
+import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import neofontrender.NeoFontRender;
 import neofontrender.common.CommonProxy;
 import neofontrender.core.config.NeofontrenderConfig;
@@ -35,6 +35,7 @@ public class ClientProxy extends CommonProxy {
         NeofontrenderKeyHandler.init();
         MinecraftForge.EVENT_BUS.register(new NeofontrenderMainMenuBranding());
         MinecraftForge.EVENT_BUS.register(new NeofontrenderOptionsButtonHandler());
+        MinecraftForge.EVENT_BUS.register(new NeofontrenderDebugOverlayHandler());
         ClientCommandHandler.instance.registerCommand(new NeofontrenderCommand());
     }
 

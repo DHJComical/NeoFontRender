@@ -63,8 +63,8 @@ public class FontTexture implements AutoCloseable {
         }
 
         ResourceLocation pageLoc = new ResourceLocation(
-                baseLocation.getNamespace(),
-                baseLocation.getPath() + "/" + pages.size());
+                baseLocation.getResourceDomain(),
+                baseLocation.getResourcePath() + "/" + pages.size());
         Page page = new Page(textureManager, pageLoc, PAGE_SIZE, PAGE_SIZE, rasterScale);
         pages.add(page);
         return page.add(pixels, pw, ph, left, right, up, down, oversample);

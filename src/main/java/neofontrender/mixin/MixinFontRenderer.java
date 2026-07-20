@@ -2,10 +2,8 @@ package neofontrender.mixin;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import org.lwjgl.opengl.GL11;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -51,23 +49,19 @@ public class MixinFontRenderer {
     //  Render hook
     // ================================================================== //
 
-    @Inject(method = "drawString(Ljava/lang/String;FFIZ)I", at = @At("HEAD"), cancellable = true)
-    private void sfr$onDrawString(String text, float x, float y, int color, boolean dropShadow,
+    @Inject(method = "drawString(Ljava/lang/String;III)I", at = @At("HEAD"), cancellable = true)
+    private void sfr$onDrawString(String text, int x, int y, int color,
                                   CallbackInfoReturnable<Integer> cir) {
-        FontRenderTuning.updateFromCurrentGlState(dropShadow);
+        FontRenderTuning.updateFromCurrentGlState(false);
         if (!sfr$shouldHook() || text == null || !FontManager.INSTANCE.isTextBackendActive()
                 || !NeofontrenderConfig.skiaAdvancedStringMode()) {
             return;
         }
 
-        GlStateManager.enableAlpha();
+        GL11.glEnable(GL11.GL_ALPHA_TEST);
         TextRenderBackend backend = FontManager.INSTANCE.getTextRenderBackend();
         if (backend == null) {
             return;
-        }
-        if (dropShadow) {
-            TextRenderResult shadow = backend.renderFormatted(text, color, true);
-            shadow.draw(x + 1.0F, y + 1.0F, shadowAlpha(color));
         }
         TextRenderResult rendered = backend.renderFormatted(text, color, false);
         rendered.draw(x, y, alphaFromColor(color));
@@ -126,7 +120,7 @@ public class MixinFontRenderer {
                 this.blue = (float) (color >> 8 & 255) / 255.0F;
                 this.green = (float) (color & 255) / 255.0F;
                 this.alpha = baseAlpha;
-                GlStateManager.color(this.red, this.blue, this.green, this.alpha);
+                GL11.glColor4f(this.red, this.blue, this.green, this.alpha);
             } else if (style == 16) {
                 this.randomStyle = true;
             } else if (style == 17) {
@@ -147,7 +141,7 @@ public class MixinFontRenderer {
                 this.blue = baseBlue;
                 this.green = baseGreen;
                 this.alpha = baseAlpha;
-                GlStateManager.color(this.red, this.blue, this.green, this.alpha);
+                GL11.glColor4f(this.red, this.blue, this.green, this.alpha);
             }
 
             i++;
@@ -161,8 +155,17 @@ public class MixinFontRenderer {
         ci.cancel();
     }
 
-    @Inject(method = "renderChar", at = @At("HEAD"), cancellable = true)
-    private void sfr$onRenderChar(char ch, boolean italic, CallbackInfoReturnable<Float> cir) {
+    @Inject(method = "renderDefaultChar", at = @At("HEAD"), cancellable = true)
+    private void sfr$onRenderDefaultChar(int ch, boolean italic, CallbackInfoReturnable<Float> cir) {
+        sfr$renderChar((char) ch, italic, cir);
+    }
+
+    @Inject(method = "renderUnicodeChar", at = @At("HEAD"), cancellable = true)
+    private void sfr$onRenderUnicodeChar(char ch, boolean italic, CallbackInfoReturnable<Float> cir) {
+        sfr$renderChar(ch, italic, cir);
+    }
+
+    private void sfr$renderChar(char ch, boolean italic, CallbackInfoReturnable<Float> cir) {
         if (!sfr$shouldHook()) {
             return;
         }
@@ -203,8 +206,8 @@ public class MixinFontRenderer {
         }
 
         Minecraft.getMinecraft().getTextureManager().bindTexture(glyph.getTextureLocation());
-        GlStateManager.enableTexture2D();
-        GlStateManager.enableAlpha();
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_ALPHA_TEST);
         glyph.render(italic, this.posX, this.posY, this.red, this.blue, this.green, this.alpha);
 
         GlyphInfo info = FontManager.INSTANCE.getDefaultFontSet().getGlyphInfo(ch);
@@ -244,8 +247,8 @@ public class MixinFontRenderer {
 
             float x = startX + positions[i];
             Minecraft.getMinecraft().getTextureManager().bindTexture(glyph.getTextureLocation());
-            GlStateManager.enableTexture2D();
-            GlStateManager.enableAlpha();
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_ALPHA_TEST);
             glyph.render(this.italicStyle, x, this.posY, this.red, this.blue, this.green, this.alpha);
             if (this.boldStyle) {
                 glyph.render(this.italicStyle, x + 1.0F, this.posY, this.red, this.blue, this.green, this.alpha);
@@ -402,16 +405,15 @@ public class MixinFontRenderer {
     }
 
     private void sfr$drawEffect(float x0, float y0, float x1, float y1) {
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.getBuffer();
-        GlStateManager.disableTexture2D();
-        buffer.begin(7, DefaultVertexFormats.POSITION);
-        buffer.pos(x0, y0, 0.0D).endVertex();
-        buffer.pos(x1, y0, 0.0D).endVertex();
-        buffer.pos(x1, y1, 0.0D).endVertex();
-        buffer.pos(x0, y1, 0.0D).endVertex();
+        Tessellator tessellator = Tessellator.instance;
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        tessellator.startDrawingQuads();
+        tessellator.addVertex(x0, y0, 0.0D);
+        tessellator.addVertex(x1, y0, 0.0D);
+        tessellator.addVertex(x1, y1, 0.0D);
+        tessellator.addVertex(x0, y1, 0.0D);
         tessellator.draw();
-        GlStateManager.enableTexture2D();
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
     // ================================================================== //
@@ -654,7 +656,7 @@ public class MixinFontRenderer {
 
     private boolean sfr$shouldHook() {
         String className = ((Object) this).getClass().getName();
-        return !className.equals("net.minecraftforge.fml.client.SplashProgress$SplashFontRenderer")
+        return !className.equals("cpw.mods.fml.client.SplashProgress$SplashFontRenderer")
                 && !className.endsWith("SimpleModelFontRenderer");
     }
 
@@ -671,10 +673,6 @@ public class MixinFontRenderer {
             return 1.0F;
         }
         return (float) (color >>> 24) / 255.0F;
-    }
-
-    private static float shadowAlpha(int color) {
-        return alphaFromColor(color);
     }
 
     private boolean[] sfr$boldStateByIndex(String text) {

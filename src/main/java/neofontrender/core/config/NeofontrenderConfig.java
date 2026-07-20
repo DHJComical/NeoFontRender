@@ -707,7 +707,7 @@ public final class NeofontrenderConfig {
 
     public static void load() {
         if (configPath == null) {
-            configPath = new File(Minecraft.getMinecraft().gameDir, "config" + File.separator + CONFIG_NAME).toPath();
+            configPath = new File(Minecraft.getMinecraft().mcDataDir, "config" + File.separator + CONFIG_NAME).toPath();
         }
 
         File configFile = configPath.toFile();
@@ -740,7 +740,7 @@ public final class NeofontrenderConfig {
     }
 
     public static File fontDirectory() {
-        return new File(Minecraft.getMinecraft().gameDir, "neofontrender" + File.separator + "fonts");
+        return new File(Minecraft.getMinecraft().mcDataDir, "neofontrender" + File.separator + "fonts");
     }
 
     public static File ensureFontDirectory() {

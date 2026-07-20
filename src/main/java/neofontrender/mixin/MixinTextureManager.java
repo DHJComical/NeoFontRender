@@ -5,6 +5,7 @@ import net.minecraft.client.renderer.texture.ITextureObject;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.util.ResourceLocation;
 import neofontrender.core.config.NeofontrenderConfig;
+import org.lwjgl.opengl.GL11;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,19 +25,29 @@ public class MixinTextureManager {
     private void sfr$onLoadTexture(ResourceLocation resourceLoc, ITextureObject textureObj,
                                    CallbackInfoReturnable<Boolean> cir) {
         if (!Boolean.TRUE.equals(cir.getReturnValue()) || !NeofontrenderConfig.isLoaded()
-                || resourceLoc == null || resourceLoc.getPath() == null
+                || resourceLoc == null || resourceLoc.getResourcePath() == null
                 || !(textureObj instanceof AbstractTexture)) {
             return;
         }
-        String path = resourceLoc.getPath();
+        String path = resourceLoc.getResourcePath();
         if (path.startsWith("textures/font/") || path.startsWith("font/")) {
             if (NeofontrenderConfig.useVanillaEngine()) {
-                ((AbstractTexture) textureObj).setBlurMipmap(false, false);
+                setTextureFiltering(textureObj, false, false);
                 return;
             }
-            ((AbstractTexture) textureObj).setBlurMipmap(
+            setTextureFiltering(textureObj,
                     NeofontrenderConfig.renderingInterpolation(),
                     NeofontrenderConfig.renderingMipmap());
         }
+    }
+
+    private static void setTextureFiltering(ITextureObject texture, boolean blur, boolean mipmap) {
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture.getGlTextureId());
+        int minFilter = blur
+                ? (mipmap ? GL11.GL_LINEAR_MIPMAP_LINEAR : GL11.GL_LINEAR)
+                : (mipmap ? GL11.GL_NEAREST_MIPMAP_LINEAR : GL11.GL_NEAREST);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, minFilter);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER,
+                blur ? GL11.GL_LINEAR : GL11.GL_NEAREST);
     }
 }
