@@ -115,17 +115,17 @@ jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     if (configurations.contain.size() > 0) from(configurations.contain) { into '/' }
     doFirst {
-        def attributes = ['ModType': 'CRL']
+        def manifestAttributes = ['ModType': 'CRL']
         if (configurations.contain.size() > 0) {
-            attributes['ContainedDeps'] = configurations.contain.collect { it.name }.join(' ')
-            attributes['NonModDeps'] = true
+            manifestAttributes['ContainedDeps'] = configurations.contain.collect { it.name }.join(' ')
+            manifestAttributes['NonModDeps'] = true
         }
         if (is_coremod.toBoolean()) {
-            attributes['FMLCorePlugin'] = coremod_plugin_class_name
-            if (coremod_includes_mod.toBoolean()) attributes['FMLCorePluginContainsFMLMod'] = true
+            manifestAttributes['FMLCorePlugin'] = coremod_plugin_class_name
+            if (coremod_includes_mod.toBoolean()) manifestAttributes['FMLCorePluginContainsFMLMod'] = true
         }
-        if (use_access_transformer.toBoolean()) attributes['FMLAT'] = access_transformer_locations
-        manifest { attributes(attributes) }
+        if (use_access_transformer.toBoolean()) manifestAttributes['FMLAT'] = access_transformer_locations
+        manifest { attributes(manifestAttributes) }
     }
     finalizedBy tasks.named(remapTaskName)
 }
