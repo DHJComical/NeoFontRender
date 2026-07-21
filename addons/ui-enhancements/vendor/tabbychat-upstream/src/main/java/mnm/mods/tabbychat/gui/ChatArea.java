@@ -24,6 +24,8 @@ import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
 import neofontrender.addons.scrolling.SmoothScrollConfigAccess;
 import neofontrender.addons.scrolling.SmoothScrollController;
+import neofontrender.addons.chat.ChatStyleConfig;
+import neofontrender.addons.chat.ChatStyleRenderer;
 
 import java.awt.Dimension;
 import java.awt.Point;
@@ -111,7 +113,12 @@ public class ChatArea extends GuiComponent implements ReceivedChat {
         float opac = mc.gameSettings.chatOpacity;
         GlStateManager.color(1, 1, 1, opac);
 
-        drawModalCorners(MODAL);
+        if (ChatStyleConfig.enabled) {
+            ChatStyleRenderer.panel(getBounds().width, getBounds().height,
+                    ChatStyleConfig.background, ChatStyleConfig.border, mc.gameSettings.chatOpacity);
+        } else {
+            drawModalCorners(MODAL);
+        }
 
         zLevel = 100;
         // TODO abstracted padding
@@ -129,7 +136,10 @@ public class ChatArea extends GuiComponent implements ReceivedChat {
 
     private void drawChatLine(Message line, int xPos, int yPos) {
         String text = line.getMessageWithOptionalTimestamp().getFormattedText();
-        mc.fontRenderer.drawStringWithShadow(text, xPos, yPos, Color.WHITE.getHex() + (getLineOpacity(line) << 24));
+        int configured = ChatStyleConfig.enabled
+                ? ChatStyleRenderer.color(ChatStyleConfig.text, mc.gameSettings.chatOpacity) : Color.WHITE.getHex();
+        int alpha = Math.min(configured >>> 24, getLineOpacity(line));
+        mc.fontRenderer.drawStringWithShadow(text, xPos, yPos, configured & 0x00FFFFFF | alpha << 24);
     }
 
     public void setChannel(ChatChannel channel) {

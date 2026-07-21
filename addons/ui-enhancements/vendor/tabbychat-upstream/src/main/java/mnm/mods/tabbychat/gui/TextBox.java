@@ -22,6 +22,8 @@ import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
 import org.lwjgl.opengl.GL11;
+import neofontrender.addons.chat.ChatStyleConfig;
+import neofontrender.addons.chat.ChatStyleRenderer;
 
 import java.awt.Dimension;
 import java.awt.Rectangle;
@@ -61,7 +63,12 @@ public class TextBox extends GuiComponent implements ChatInput {
     @Override
     public void drawComponent(int mouseX, int mouseY) {
         GlStateManager.enableBlend();
-        drawModalCorners(MODAL);
+        if (ChatStyleConfig.enabled) {
+            ChatStyleRenderer.panel(getBounds().width, getBounds().height,
+                    ChatStyleConfig.inputBackground, ChatStyleConfig.border, mc.gameSettings.chatOpacity);
+        } else {
+            drawModalCorners(MODAL);
+        }
         GlStateManager.disableBlend();
 
         drawText();
@@ -169,8 +176,10 @@ public class TextBox extends GuiComponent implements ChatInput {
         int yPos = 1;
         List<ITextComponent> lines = getFormattedLines();
         for (ITextComponent line : lines) {
-            Color color = Color.WHITE;
-            ffr.drawChat(line, 3, yPos, color.getHex(), false);
+            int color = ChatStyleConfig.enabled
+                    ? ChatStyleRenderer.color(ChatStyleConfig.text, mc.gameSettings.chatOpacity)
+                    : Color.WHITE.getHex();
+            ffr.drawChat(line, 3, yPos, color, false);
             yPos += fr.FONT_HEIGHT + 2;
         }
 

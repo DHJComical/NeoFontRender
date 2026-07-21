@@ -3,6 +3,8 @@ package mnm.mods.tabbychat.gui;
 import mnm.mods.tabbychat.core.GuiNewChatTC;
 import mnm.mods.util.gui.GuiComponent;
 import net.minecraft.client.gui.Gui;
+import neofontrender.addons.chat.ChatStyleConfig;
+import neofontrender.addons.chat.ChatStyleRenderer;
 
 public class Scrollbar extends GuiComponent {
 
@@ -27,7 +29,9 @@ public class Scrollbar extends GuiComponent {
             float perc = Math.abs((float) scroll / (float) total - 1) * Math.abs((float) size / (float) max - 1);
             int pos = (int) (perc * max);
 
-            Gui.drawRect(0, pos, 1, pos + size, -1);
+            int color = ChatStyleConfig.enabled
+                    ? ChatStyleRenderer.color(ChatStyleConfig.scrollbar, mc.gameSettings.chatOpacity) : -1;
+            Gui.drawRect(0, pos, Math.max(1, ChatStyleConfig.enabled ? ChatStyleConfig.borderWidth : 1), pos + size, color);
             super.drawComponent(mouseX, mouseY);
         }
     }

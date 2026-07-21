@@ -9,6 +9,7 @@ public final class EnhancedChatModule implements UiEnhancementModule {
     @Override
     public void preInit() {
         EnhancedChatConfig.load();
+        ChatStyleConfig.load();
         ChatHistoryManager.INSTANCE.initialize();
         if (!ExternalChatCompat.tabbyChatLoaded()) TabbyChat.getInstance().init();
     }
@@ -17,6 +18,7 @@ public final class EnhancedChatModule implements UiEnhancementModule {
     public void init() {
         NfrSettingsPageRegistry.register(new EnhancedChatSettingsPage());
         if (!ExternalChatCompat.tabbyChatLoaded()) NfrSettingsPageRegistry.register(new TabbedChatSettingsPage());
+        if (!ExternalChatCompat.tabbyChatLoaded()) NfrSettingsPageRegistry.register(new ChatStyleSettingsPage());
         MinecraftForge.EVENT_BUS.register(ChatHistoryManager.INSTANCE);
         if (!ExternalChatCompat.tabbyChatLoaded()) TabbyChat.getInstance().postInit();
     }

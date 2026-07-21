@@ -14,6 +14,8 @@ import mnm.mods.util.gui.events.GuiMouseEvent;
 import mnm.mods.util.gui.events.GuiMouseEvent.MouseEvent;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
+import neofontrender.addons.chat.ChatStyleConfig;
+import neofontrender.addons.chat.ChatStyleRenderer;
 
 import java.awt.Dimension;
 import javax.annotation.Nonnull;
@@ -63,13 +65,20 @@ public class ChatTab extends GuiButton {
             ILocation loc = getLocation();
             GlStateManager.enableBlend();
             GlStateManager.color(1, 1, 1, mc.gameSettings.chatOpacity);
-            drawModalCorners(getStatusModal());
+            if (ChatStyleConfig.enabled) {
+                ChatStyleRenderer.panel(loc.getWidth(), loc.getHeight(), styleColor(status),
+                        ChatStyleConfig.border, mc.gameSettings.chatOpacity);
+            } else {
+                drawModalCorners(getStatusModal());
+            }
 
             int txtX = loc.getWidth() / 2;
             int txtY = loc.getHeight() / 2 - 2;
 
             Color primary = getPrimaryColorProperty();
-            int color = Color.getColor(primary.getRed(), primary.getGreen(), primary.getBlue(), (int) (mc.gameSettings.chatOpacity * 255));
+            int color = ChatStyleConfig.enabled
+                    ? ChatStyleRenderer.color(ChatStyleConfig.text, mc.gameSettings.chatOpacity)
+                    : Color.getColor(primary.getRed(), primary.getGreen(), primary.getBlue(), (int) (mc.gameSettings.chatOpacity * 255));
             this.drawCenteredString(mc.fontRenderer, this.getText(), txtX, txtY, color);
             GlStateManager.disableBlend();
         }
@@ -114,6 +123,14 @@ public class ChatTab extends GuiButton {
             }
         }
         return NONE;
+    }
+
+    private int styleColor(ChannelStatus status) {
+        if (isHovered()) return ChatStyleConfig.hoveredTab;
+        if (status == ChannelStatus.ACTIVE) return ChatStyleConfig.activeTab;
+        if (status == ChannelStatus.UNREAD) return ChatStyleConfig.unreadTab;
+        if (status == ChannelStatus.PINGED) return ChatStyleConfig.pingedTab;
+        return ChatStyleConfig.tabBackground;
     }
 
     @Nonnull
