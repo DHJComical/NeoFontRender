@@ -776,6 +776,44 @@ public final class NeofontrenderConfig {
         }
     }
 
+    /** Internal bridge used by the public extension-config API. */
+    public static synchronized Object getExtensionValue(String key, Object defaultValue) {
+        ensureLoadedForExtensionApi();
+        return config.getOrElse(key, defaultValue);
+    }
+
+    public static synchronized boolean hasExtensionValue(String key) {
+        ensureLoadedForExtensionApi();
+        return config.contains(key);
+    }
+
+    public static synchronized Object removeExtensionValue(String key) {
+        ensureLoadedForExtensionApi();
+        return config.remove(key);
+    }
+
+    /** Internal bridge used by the public extension-config API. */
+    public static synchronized void setExtensionValue(String key, Object value) {
+        ensureLoadedForExtensionApi();
+        config.set(key, value);
+    }
+
+    /** Internal bridge used by the public extension-config API. */
+    public static synchronized void setExtensionComment(String key, String comment) {
+        ensureLoadedForExtensionApi();
+        config.setComment(key, comment);
+    }
+
+    /** Internal bridge used by the public extension-config API. */
+    public static synchronized void saveExtensionValues() {
+        ensureLoadedForExtensionApi();
+        config.save();
+    }
+
+    private static void ensureLoadedForExtensionApi() {
+        if (config == null) load();
+    }
+
     public static void load() {
         if (configPath == null) {
             configPath = new File(Minecraft.getMinecraft().gameDir, "config" + File.separator + CONFIG_NAME).toPath();

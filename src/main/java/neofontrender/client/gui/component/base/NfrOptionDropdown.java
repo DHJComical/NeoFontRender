@@ -8,6 +8,9 @@ import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.menu.ContextMenuButton;
 import com.cleanroommc.modularui.widgets.menu.Menu;
+import com.cleanroommc.modularui.widget.AbstractScrollWidget;
+import com.cleanroommc.modularui.widget.sizer.Area;
+import com.cleanroommc.modularui.widget.sizer.AreaResizer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 
@@ -45,6 +48,9 @@ public final class NfrOptionDropdown extends ContextMenuButton<NfrOptionDropdown
         this.display = display;
         this.compact = compact;
         requiresClick();
+        // We provide the menu's relative anchor ourselves because ModularUI's widget Area does
+        // not contain the render-time translation applied by ancestor scroll widgets.
+        openCustom();
     }
 
     @Override
@@ -77,12 +83,32 @@ public final class NfrOptionDropdown extends ContextMenuButton<NfrOptionDropdown
             option.widthRel(1f);
             list.child(option);
         }
-        return new Menu<>()
+        Menu<?> menu = new Menu<>()
                 .widthRel(1f)
+                .topRel(1f)
                 .coverChildrenHeight()
                 .background(new Rectangle().color(MENU_BORDER))
                 .padding(1)
                 .child(list);
+        // Keep ModularUI's native relative layout. Supplying screen coordinates here is wrong:
+        // MenuPanel adds its owning panel's origin, which doubled the X offset on wide screens.
+        // A virtual source Area preserves that origin handling and only adds the missing scroll
+        // transform.
+        menu.resizer().relative(new AreaResizer(scrolledAnchor()));
+        return menu;
+    }
+
+    private Area scrolledAnchor() {
+        Area anchor = getArea().createCopy();
+        IWidget ancestor = getParent();
+        while (ancestor != null) {
+            if (ancestor instanceof AbstractScrollWidget) {
+                AbstractScrollWidget<?, ?> scroll = (AbstractScrollWidget<?, ?>) ancestor;
+                anchor.offset(-scroll.getScrollX(), -scroll.getScrollY());
+            }
+            ancestor = ancestor.getParent();
+        }
+        return anchor;
     }
 
     @Override
