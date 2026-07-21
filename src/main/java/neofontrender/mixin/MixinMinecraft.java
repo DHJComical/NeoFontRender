@@ -19,7 +19,9 @@ public class MixinMinecraft {
     @Inject(method = "init", at = @At("RETURN"))
     private void sfr$onStartGame(CallbackInfo ci) {
         Minecraft mc = Minecraft.getMinecraft();
-        NeofontrenderConfig.load();
+        if (!NeofontrenderConfig.isLoaded()) {
+            NeofontrenderConfig.load();
+        }
         if (NeofontrenderConfig.fixImeInput()) {
             long window = GLFW.glfwGetCurrentContext();
             if (window != 0) {

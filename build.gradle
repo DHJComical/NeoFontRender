@@ -125,7 +125,7 @@ jar {
             if (coremod_includes_mod.toBoolean()) manifestAttributes['FMLCorePluginContainsFMLMod'] = true
         }
         if (use_access_transformer.toBoolean()) manifestAttributes['FMLAT'] = access_transformer_locations
-        manifest { attributes(manifestAttributes) }
+        manifest.attributes(manifestAttributes)
     }
     finalizedBy tasks.named(remapTaskName)
 }
