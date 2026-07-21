@@ -7,7 +7,7 @@ plugins {
 group = 'neofontrender.addons'
 version = '0.1.0'
 
-base { archivesName = 'neofontrender-modern-tooltips' }
+base { archivesName = 'neofontrender-ui-enhancements' }
 
 java {
     toolchain { languageVersion = JavaLanguageVersion.of(25) }

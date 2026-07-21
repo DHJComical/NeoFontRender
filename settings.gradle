@@ -18,4 +18,4 @@ plugins {
 
 rootProject.name = rootProject.projectDir.getName()
 
-include 'addons:modern-tooltips'
+include 'addons:ui-enhancements'

@@ -15,7 +15,7 @@ final class ModernTooltipHandler {
         if (TooltipConfig.yieldToLegendaryTooltips && Loader.isModLoaded("legendarytooltips")) {
             if (!warnedLegendary) {
                 warnedLegendary = true;
-                NfrModernTooltips.LOGGER.info("LegendaryTooltips detected; NFR Modern Tooltips will not intercept tooltips");
+                TooltipModule.LOGGER.info("LegendaryTooltips detected; the modern tooltip module will not intercept tooltips");
             }
             return;
         }

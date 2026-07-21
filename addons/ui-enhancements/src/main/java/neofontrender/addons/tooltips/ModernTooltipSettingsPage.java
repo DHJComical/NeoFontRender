@@ -7,13 +7,14 @@ import neofontrender.api.client.settings.NfrSettingsPageSession;
 import neofontrender.client.gui.component.base.NfrOptionsGrid;
 import neofontrender.client.gui.component.business.NfrSettingsControls;
 import neofontrender.client.gui.views.NfrContentView;
+import neofontrender.addons.ui.NfrUiEnhancements;
 
 import java.util.Arrays;
 import java.util.List;
 
 final class ModernTooltipSettingsPage implements NfrSettingsPage {
-    @Override public String id() { return NfrModernTooltips.MOD_ID + ":settings"; }
-    @Override public String titleKey() { return "neofontrender_modern_tooltips.gui.category"; }
+    @Override public String id() { return NfrUiEnhancements.MOD_ID + ":tooltips"; }
+    @Override public String titleKey() { return "neofontrender_ui_enhancements.gui.tooltips.category"; }
     @Override public String title() { return AddonI18n.tr(titleKey()); }
     @Override public NfrSettingsPageSession createSession() { return new Session(); }
 
@@ -126,7 +127,7 @@ final class ModernTooltipSettingsPage implements NfrSettingsPage {
         }
 
         private static String tr(String suffix) {
-            return AddonI18n.tr("neofontrender_modern_tooltips." + suffix);
+            return AddonI18n.tr("neofontrender_ui_enhancements." + suffix);
         }
 
         private static List<String> integerValues(int min, int max) {

@@ -11,7 +11,7 @@ import java.util.Properties;
 
 /** Self-contained fallback when an old resource loader misses an addon's locale during startup. */
 final class AddonI18n {
-    private static final String ROOT = "/assets/neofontrender_modern_tooltips/lang/";
+    private static final String ROOT = "/assets/neofontrender_ui_enhancements/lang/";
     private static String loadedLanguage;
     private static Properties fallback = new Properties();
 
@@ -37,7 +37,7 @@ final class AddonI18n {
         try (InputStream stream = AddonI18n.class.getResourceAsStream(ROOT + language + ".lang")) {
             if (stream != null) values.load(new InputStreamReader(stream, StandardCharsets.UTF_8));
         } catch (IOException exception) {
-            NfrModernTooltips.LOGGER.warn("Failed to load addon language {}", language, exception);
+            TooltipModule.LOGGER.warn("Failed to load addon language {}", language, exception);
         }
     }
 }

@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets;
 
 /** Single-quad analytic rounded rectangle, border and shadow renderer. */
 final class ModernUiTooltipShader {
-    private static final String ROOT = "/assets/neofontrender_modern_tooltips/shaders/";
+    private static final String ROOT = "/assets/neofontrender_ui_enhancements/shaders/";
     private static int program;
     private static boolean unavailable;
 
@@ -74,7 +74,7 @@ final class ModernUiTooltipShader {
             return true;
         } catch (Throwable t) {
             unavailable = true;
-            NfrModernTooltips.LOGGER.warn("ModernUI tooltip shader failed; using geometry fallback", t);
+            TooltipModule.LOGGER.warn("ModernUI tooltip shader failed; using geometry fallback", t);
             return false;
         } finally {
             GL20.glUseProgram(previous);
@@ -102,7 +102,7 @@ final class ModernUiTooltipShader {
             return created;
         } catch (Throwable t) {
             unavailable = true;
-            NfrModernTooltips.LOGGER.warn("ModernUI tooltip shader is unavailable", t);
+            TooltipModule.LOGGER.warn("ModernUI tooltip shader is unavailable", t);
             return 0;
         }
     }
