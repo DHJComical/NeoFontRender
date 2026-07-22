@@ -63,19 +63,27 @@ final class VanillaHudBarProviders {
     private static HudBarValue food(EntityPlayer player) {
         FoodStats stats = player.getFoodStats();
         float food = stats.getFoodLevel();
+        float maximum = AppleCoreCompat.maximumHunger(player);
         float saturation = stats.getSaturationLevel();
         float preview = 0.0F;
         ItemStack held = player.getHeldItemMainhand();
-        if (!held.isEmpty() && held.getItem() instanceof ItemFood) preview = ((ItemFood) held.getItem()).getHealAmount(held);
+        float appleCorePreview = AppleCoreCompat.foodHunger(held, player);
+        if (!Float.isNaN(appleCorePreview)) preview = appleCorePreview;
+        else if (!held.isEmpty() && held.getItem() instanceof ItemFood)
+            preview = ((ItemFood) held.getItem()).getHealAmount(held);
         float exhaustion;
         try {
             exhaustion = ObfuscationReflectionHelper.getPrivateValue(FoodStats.class, stats, "field_75126_c");
         } catch (RuntimeException ignored) {
             exhaustion = 0.0F;
         }
+        exhaustion = AppleCoreCompat.exhaustion(player, exhaustion);
+        float maximumExhaustion = AppleCoreCompat.maximumExhaustion(player);
         int primary = player.isPotionActive(MobEffects.HUNGER) ? 0xFF579A42 : HudBarsConfig.foodColor;
-        return new HudBarValue(food, 20.0F, saturation, preview, Math.min(4.0F, exhaustion) * 5.0F,
-                primary, HudBarsConfig.saturationColor, withAlpha(primary, 150), 0x90FFFFFF, text(food, 20.0F));
+        float depletion = Math.min(maximumExhaustion, exhaustion) / maximumExhaustion * maximum;
+        return new HudBarValue(food, maximum, saturation, preview, depletion,
+                primary, HudBarsConfig.saturationColor, withAlpha(primary, 150), 0x90FFFFFF,
+                text(food, maximum));
     }
 
     private static float armor(EntityPlayer player) {

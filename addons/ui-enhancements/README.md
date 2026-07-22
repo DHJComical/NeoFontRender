@@ -21,7 +21,7 @@ Current feature modules:
 
 ## Runtime design
 
-- Requires Neo Font Render 0.3.4 or newer.
+- Requires Neo Font Render 0.3.5 or newer.
 - Uses Arc3D Core 2026.2.0 distributed by the required NFR main mod.
 - Uses Cleanroom's host LWJGL 3.4.1 and never bundles LWJGL or native files.
 - Yields to LegendaryTooltips by default when that mod is present.
@@ -45,6 +45,10 @@ Namespaced ids and deterministic ordering allow multiple integrations to share o
 
 The distributable jar is written to `addons/ui-enhancements/build/libs/` without
 the `-dev` classifier.
+
+GitHub Actions builds the addon independently for relevant pushes and pull requests. Releases use
+tags in the form `ui-enhancements-v<version>` (for example `ui-enhancements-v0.1.0`) and attach the
+installable remapped JAR plus its SHA-256 checksum to the repository's GitHub Release.
 
 ## Configuration
 

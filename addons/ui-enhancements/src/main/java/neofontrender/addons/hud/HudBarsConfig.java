@@ -14,12 +14,15 @@ final class HudBarsConfig {
     static boolean air = true;
     static boolean mountHealth = true;
     static boolean showNumbers = true;
+    static boolean showIcons = true;
     static boolean smoothValues = true;
     static boolean rounded = true;
     static String theme = HudBarTheme.MODERN.id;
     static int width = 81;
     static int height = 9;
     static int gap = 2;
+    static int textScale = 75;
+    static String textPosition = "center";
     static int background = 0xA0000000;
     static int border = 0xB0606060;
     static int healthColor = 0xFFE53935;
@@ -46,6 +49,7 @@ final class HudBarsConfig {
                 .define("hudBars.air", true, "Replace underwater air bubbles.")
                 .define("hudBars.mountHealth", true, "Replace mount hearts.")
                 .define("hudBars.showNumbers", true, "Draw current and maximum values in bars.")
+                .define("hudBars.showIcons", true, "Draw vanilla HUD icons beside status bars.")
                 .define("hudBars.smoothValues", true, "Animate fill changes.")
                 .define("hudBars.rounded", true, "Use rounded analytic geometry.")
                 .define("hudBars.theme", HudBarTheme.MODERN.id,
@@ -53,6 +57,8 @@ final class HudBarsConfig {
                 .define("hudBars.width", 81, "Bar width in GUI pixels (48-160).")
                 .define("hudBars.height", 9, "Bar height in GUI pixels (7-16).")
                 .define("hudBars.gap", 2, "Vertical gap between bars (0-8).")
+                .define("hudBars.textScale", 75, "Numeric text scale in percent (50-125).")
+                .define("hudBars.textPosition", "center", "Numeric text position: center or classic.")
                 .define("hudBars.background", color(background), "ARGB bar background.")
                 .define("hudBars.border", color(border), "ARGB one-pixel border.")
                 .define("hudBars.color.healthLow", color(healthColor), "Low-health color.")
@@ -74,12 +80,15 @@ final class HudBarsConfig {
         air = f.getBoolean("hudBars.air", true);
         mountHealth = f.getBoolean("hudBars.mountHealth", true);
         showNumbers = f.getBoolean("hudBars.showNumbers", true);
+        showIcons = f.getBoolean("hudBars.showIcons", true);
         smoothValues = f.getBoolean("hudBars.smoothValues", true);
         rounded = f.getBoolean("hudBars.rounded", true);
         theme = HudBarTheme.parse(f.getString("hudBars.theme", HudBarTheme.MODERN.id)).id;
         width = f.getInt("hudBars.width", 81, 48, 160);
         height = f.getInt("hudBars.height", 9, 7, 16);
         gap = f.getInt("hudBars.gap", 2, 0, 8);
+        textScale = f.getInt("hudBars.textScale", 75, 50, 125);
+        textPosition = textPosition(f.getString("hudBars.textPosition", "center"));
         background = parse(f.getString("hudBars.background", color(background)), background);
         border = parse(f.getString("hudBars.border", color(border)), border);
         healthColor = parse(f.getString("hudBars.color.healthLow", color(healthColor)), healthColor);
@@ -100,9 +109,11 @@ final class HudBarsConfig {
                 .set("hudBars.health", health).set("hudBars.absorption", absorption)
                 .set("hudBars.armor", armor).set("hudBars.toughness", toughness)
                 .set("hudBars.food", food).set("hudBars.air", air).set("hudBars.mountHealth", mountHealth)
-                .set("hudBars.showNumbers", showNumbers).set("hudBars.smoothValues", smoothValues)
+                .set("hudBars.showNumbers", showNumbers).set("hudBars.showIcons", showIcons)
+                .set("hudBars.smoothValues", smoothValues)
                 .set("hudBars.rounded", rounded).set("hudBars.theme", theme).set("hudBars.width", width)
-                .set("hudBars.height", height).set("hudBars.gap", gap)
+                .set("hudBars.height", height).set("hudBars.gap", gap).set("hudBars.textScale", textScale)
+                .set("hudBars.textPosition", textPosition)
                 .set("hudBars.background", color(background)).set("hudBars.border", color(border))
                 .set("hudBars.color.healthLow", color(healthColor)).set("hudBars.color.healthHigh", color(healthyColor))
                 .set("hudBars.color.absorption", color(absorptionColor)).set("hudBars.color.armor", color(armorColor))
@@ -112,6 +123,7 @@ final class HudBarsConfig {
     }
 
     private static String color(int value) { return String.format("#%08X", value); }
+    static String textPosition(String value) { return "classic".equalsIgnoreCase(value) ? "classic" : "center"; }
     private static int parse(String value, int fallback) {
         try { return (int) Long.parseLong(value.startsWith("#") ? value.substring(1) : value, 16); }
         catch (RuntimeException ignored) { return fallback; }

@@ -37,11 +37,12 @@ final class HudBarsSettingsPage implements NfrSettingsPage {
                     .add(toggle(c, "air", () -> HudBarsConfig.air, v -> HudBarsConfig.air = v))
                     .add(toggle(c, "mount", () -> HudBarsConfig.mountHealth, v -> HudBarsConfig.mountHealth = v))
                     .add(toggle(c, "numbers", () -> HudBarsConfig.showNumbers, v -> HudBarsConfig.showNumbers = v))
+                    .add(toggle(c, "icons", () -> HudBarsConfig.showIcons, v -> HudBarsConfig.showIcons = v))
                     .add(toggle(c, "smooth", () -> HudBarsConfig.smoothValues, v -> HudBarsConfig.smoothValues = v))
                     .add(toggle(c, "rounded", () -> HudBarsConfig.rounded, v -> HudBarsConfig.rounded = v))
                     .add(c.dropdownText("hud_bar_theme", () -> tr("gui.hud.theme"),
                             () -> HudBarsConfig.theme, v -> HudBarsConfig.theme = HudBarTheme.parse(v).id,
-                            Arrays.asList("modern", "flat", "glass", "segmented", "minimal"),
+                            Arrays.asList("modern", "flat", "glass", "segmented", "minimal", "classic"),
                             v -> tr("gui.hud.theme." + v)).size(260, 24))
                     .add(c.dropdownText("hud_bar_width", () -> tr("gui.hud.width"),
                             () -> Integer.toString(HudBarsConfig.width), v -> HudBarsConfig.width = Integer.parseInt(v),
@@ -52,6 +53,16 @@ final class HudBarsSettingsPage implements NfrSettingsPage {
                     .add(c.dropdownText("hud_bar_gap", () -> tr("gui.hud.gap"),
                             () -> Integer.toString(HudBarsConfig.gap), v -> HudBarsConfig.gap = Integer.parseInt(v),
                             Arrays.asList("0", "1", "2", "3", "4", "6", "8"), v -> v + " px").size(260, 24))
+                    .add(c.dropdownText("hud_text_scale", () -> tr("gui.hud.text_scale"),
+                            () -> Integer.toString(HudBarsConfig.textScale),
+                            v -> HudBarsConfig.textScale = Integer.parseInt(v),
+                            Arrays.asList("50", "60", "70", "75", "80", "90", "100", "110", "125"),
+                            v -> v + "%").size(260, 24))
+                    .add(c.dropdownText("hud_text_position", () -> tr("gui.hud.text_position"),
+                            () -> HudBarsConfig.textPosition,
+                            v -> HudBarsConfig.textPosition = HudBarsConfig.textPosition(v),
+                            Arrays.asList("center", "classic"),
+                            v -> tr("gui.hud.text_position." + v)).size(260, 24))
                     .add(color(c, "hud_background", "background", () -> HudBarsConfig.background, v -> HudBarsConfig.background = v))
                     .add(color(c, "hud_border", "border", () -> HudBarsConfig.border, v -> HudBarsConfig.border = v))
                     .add(color(c, "hud_health_low", "health_low", () -> HudBarsConfig.healthColor, v -> HudBarsConfig.healthColor = v))
@@ -85,8 +96,10 @@ final class HudBarsSettingsPage implements NfrSettingsPage {
         private final boolean[] b = { HudBarsConfig.enabled, HudBarsConfig.yieldToClassicBar,
                 HudBarsConfig.health, HudBarsConfig.absorption, HudBarsConfig.armor, HudBarsConfig.toughness,
                 HudBarsConfig.food, HudBarsConfig.air, HudBarsConfig.mountHealth, HudBarsConfig.showNumbers,
-                HudBarsConfig.smoothValues, HudBarsConfig.rounded };
+                HudBarsConfig.showIcons, HudBarsConfig.smoothValues, HudBarsConfig.rounded };
         private final int width = HudBarsConfig.width, height = HudBarsConfig.height, gap = HudBarsConfig.gap;
+        private final int textScale = HudBarsConfig.textScale;
+        private final String textPosition = HudBarsConfig.textPosition;
         private final String theme = HudBarsConfig.theme;
         private final int[] c = { HudBarsConfig.background, HudBarsConfig.border, HudBarsConfig.healthColor,
                 HudBarsConfig.healthyColor, HudBarsConfig.absorptionColor, HudBarsConfig.armorColor,
@@ -97,9 +110,12 @@ final class HudBarsSettingsPage implements NfrSettingsPage {
             HudBarsConfig.enabled=b[0]; HudBarsConfig.yieldToClassicBar=b[1]; HudBarsConfig.health=b[2];
             HudBarsConfig.absorption=b[3]; HudBarsConfig.armor=b[4]; HudBarsConfig.toughness=b[5];
             HudBarsConfig.food=b[6]; HudBarsConfig.air=b[7]; HudBarsConfig.mountHealth=b[8];
-            HudBarsConfig.showNumbers=b[9]; HudBarsConfig.smoothValues=b[10]; HudBarsConfig.rounded=b[11];
+            HudBarsConfig.showNumbers=b[9]; HudBarsConfig.showIcons=b[10];
+            HudBarsConfig.smoothValues=b[11]; HudBarsConfig.rounded=b[12];
             HudBarsConfig.theme=theme;
             HudBarsConfig.width=width; HudBarsConfig.height=height; HudBarsConfig.gap=gap;
+            HudBarsConfig.textScale=textScale;
+            HudBarsConfig.textPosition=textPosition;
             HudBarsConfig.background=c[0]; HudBarsConfig.border=c[1]; HudBarsConfig.healthColor=c[2];
             HudBarsConfig.healthyColor=c[3]; HudBarsConfig.absorptionColor=c[4]; HudBarsConfig.armorColor=c[5];
             HudBarsConfig.toughnessColor=c[6]; HudBarsConfig.foodColor=c[7]; HudBarsConfig.saturationColor=c[8];

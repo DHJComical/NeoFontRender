@@ -7,7 +7,8 @@ enum HudBarTheme {
     FLAT("flat"),
     GLASS("glass"),
     SEGMENTED("segmented"),
-    MINIMAL("minimal");
+    MINIMAL("minimal"),
+    CLASSIC("classic");
 
     final String id;
 

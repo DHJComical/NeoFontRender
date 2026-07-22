@@ -19,7 +19,7 @@ import java.util.List;
         modid = NfrUiEnhancements.MOD_ID,
         name = "NFR UI Enhancements",
         version = NfrUiEnhancements.VERSION,
-        dependencies = "required-after:neofontrender@[0.3.4,)",
+        dependencies = "required-after:neofontrender@[0.3.5,)",
         clientSideOnly = true,
         acceptedMinecraftVersions = "[1.12,1.13)"
 )

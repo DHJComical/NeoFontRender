@@ -4,10 +4,12 @@ import icyllis.arc3d.core.Color;
 import icyllis.arc3d.core.MathUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.util.ResourceLocation;
 import neofontrender.addons.hud.api.HudBarSide;
 import neofontrender.addons.hud.api.HudBarValue;
 import org.lwjgl.opengl.GL11;
@@ -20,6 +22,7 @@ import java.util.Map;
 /** Arc3D color math with a host-LWJGL geometry batch; no second graphics context is created. */
 final class Arc3DHudBarRenderer {
     private static final double Z = 0.0D;
+    private static final ResourceLocation VANILLA_ICONS = new ResourceLocation("textures/gui/icons.png");
     private final Map<String, AnimatedValue> animation = new HashMap<>();
 
     void draw(String id, HudBarValue sample, HudBarSide side, int x, int y) {
@@ -43,6 +46,7 @@ final class Arc3DHudBarRenderer {
         boolean texture = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
         boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
         int shadeModel = GL11.glGetInteger(GL11.GL_SHADE_MODEL);
+        int textureBinding = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         GlStateManager.disableLighting();
         GlStateManager.disableDepth();
         GlStateManager.enableBlend();
@@ -100,8 +104,10 @@ final class Arc3DHudBarRenderer {
                     quad(marker - 0.35F, innerTop, marker + 0.35F, innerBottom, separator);
                 }
             }
+            if (theme == HudBarTheme.CLASSIC) drawClassicBevel(innerLeft, innerTop, innerRight, innerBottom);
             GlStateManager.enableTexture2D();
             drawText(sample.text, x, y);
+            if (HudBarsConfig.showIcons) drawIcon(id, side, x, y);
         } finally {
             GlStateManager.shadeModel(shadeModel);
             if (cull) GlStateManager.enableCull();
@@ -114,11 +120,13 @@ final class Arc3DHudBarRenderer {
             else GlStateManager.disableDepth();
             if (lighting) GlStateManager.enableLighting();
             else GlStateManager.disableLighting();
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureBinding);
         }
     }
 
     private static float radius(HudBarTheme theme) {
-        if (!HudBarsConfig.rounded || theme == HudBarTheme.FLAT || theme == HudBarTheme.SEGMENTED) return 0.01F;
+        if (!HudBarsConfig.rounded || theme == HudBarTheme.FLAT || theme == HudBarTheme.SEGMENTED
+                || theme == HudBarTheme.CLASSIC) return 0.01F;
         if (theme == HudBarTheme.MINIMAL) return Math.min(2.0F, HudBarsConfig.height * 0.5F);
         return Math.min(3.5F, HudBarsConfig.height * 0.5F);
     }
@@ -135,6 +143,33 @@ final class Arc3DHudBarRenderer {
 
     private static int withAlpha(int color, int alpha) {
         return color & 0x00FFFFFF | (Math.max(0, Math.min(255, alpha)) << 24);
+    }
+
+    private static void drawClassicBevel(float left, float top, float right, float bottom) {
+        quad(left, top, right, top + 1.0F, 0x70FFFFFF);
+        quad(left, top, left + 1.0F, bottom, 0x70FFFFFF);
+        quad(left, bottom - 1.0F, right, bottom, 0x80000000);
+        quad(right - 1.0F, top, right, bottom, 0x80000000);
+    }
+
+    private static void drawIcon(String id, HudBarSide side, int x, int y) {
+        int u;
+        int v;
+        int backgroundU = -1;
+        if (id.endsWith(":health")) { u = 52; v = 0; backgroundU = 16; }
+        else if (id.endsWith(":absorption")) { u = 160; v = 0; backgroundU = 16; }
+        else if (id.endsWith(":armor")) { u = 43; v = 9; }
+        else if (id.endsWith(":toughness")) { u = 43; v = 9; }
+        else if (id.endsWith(":food")) { u = 52; v = 27; backgroundU = 16; }
+        else if (id.endsWith(":air")) { u = 16; v = 18; }
+        else if (id.endsWith(":mount_health")) { u = 88; v = 9; backgroundU = 16; }
+        else return;
+        int iconX = side == HudBarSide.RIGHT ? x + HudBarsConfig.width + 1 : x - 10;
+        int iconY = y + (HudBarsConfig.height - 9) / 2;
+        Minecraft.getMinecraft().getTextureManager().bindTexture(VANILLA_ICONS);
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        if (backgroundU >= 0) Gui.drawModalRectWithCustomSizedTexture(iconX, iconY, backgroundU, v, 9, 9, 256, 256);
+        Gui.drawModalRectWithCustomSizedTexture(iconX, iconY, u, v, 9, 9, 256, 256);
     }
 
     private float animated(String id, float target) {
@@ -155,9 +190,19 @@ final class Arc3DHudBarRenderer {
     private static void drawText(String text, int x, int y) {
         if (text == null || text.isEmpty()) return;
         FontRenderer font = Minecraft.getMinecraft().fontRenderer;
-        int textX = x + (HudBarsConfig.width - font.getStringWidth(text)) / 2;
-        int textY = y + (HudBarsConfig.height - font.FONT_HEIGHT) / 2;
-        font.drawString(text, textX, textY, 0xFFFFFFFF, true);
+        float scale = Math.max(0.5F, Math.min(1.25F, HudBarsConfig.textScale / 100.0F));
+        float textX = "classic".equals(HudBarsConfig.textPosition)
+                ? x + 9.0F
+                : x + (HudBarsConfig.width - font.getStringWidth(text) * scale) * 0.5F;
+        float textY = y + (HudBarsConfig.height - font.FONT_HEIGHT * scale) * 0.5F;
+        GlStateManager.pushMatrix();
+        try {
+            GlStateManager.translate(textX, textY, 0.0F);
+            GlStateManager.scale(scale, scale, 1.0F);
+            font.drawString(text, 0, 0, 0xFFFFFFFF, true);
+        } finally {
+            GlStateManager.popMatrix();
+        }
     }
 
     private static void rounded(float left, float top, float right, float bottom, float requestedRadius, int color) {
