@@ -18,6 +18,7 @@
     "MixinGuiSlotSmoothScroll",
     "MixinGuiTextFieldCursor",
     "MixinModularTextFieldCursor",
+    "compat.MixinObscureTooltipState",
     "tabbychat.IChatTabCompleter",
     "tabbychat.MixinChatTabCompleter",
     "tabbychat.MixinGuiChat",

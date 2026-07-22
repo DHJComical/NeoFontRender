@@ -14,6 +14,10 @@ public final class SmoothScrollController {
     }
 
     public void scrollBy(float delta, float max, float actual) {
+        if (max <= 0.0F) {
+            sync(0.0F);
+            return;
+        }
         if (!initialized) sync(actual);
         start = current;
         target = clamp(target + delta, max);
@@ -21,6 +25,10 @@ public final class SmoothScrollController {
     }
 
     public float update(float actual, float max) {
+        if (max <= 0.0F) {
+            sync(0.0F);
+            return 0.0F;
+        }
         if (!initialized || !SmoothScrollConfig.enabled) {
             sync(clamp(actual, max));
             return current;

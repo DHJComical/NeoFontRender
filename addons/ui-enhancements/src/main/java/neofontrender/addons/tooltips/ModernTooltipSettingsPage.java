@@ -33,6 +33,8 @@ final class ModernTooltipSettingsPage implements NfrSettingsPage {
                             value -> tr("gui.style." + value)).size(260, 24))
                     .add(c.toggleText(() -> tr("gui.legendary"), () -> tr("tooltip.legendary"),
                             () -> TooltipConfig.yieldToLegendaryTooltips, value -> TooltipConfig.yieldToLegendaryTooltips = value))
+                    .add(c.toggleText(() -> tr("gui.obscure_yield"), () -> tr("tooltip.obscure_yield"),
+                            () -> TooltipConfig.yieldToObscureTooltips, value -> TooltipConfig.yieldToObscureTooltips = value))
                     .add(c.toggleText(() -> tr("gui.rounded"), () -> "",
                             () -> TooltipConfig.rounded, value -> TooltipConfig.rounded = value))
                     .add(c.toggleText(() -> tr("gui.center_title"), () -> "",

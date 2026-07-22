@@ -23,8 +23,12 @@ public abstract class MixinGuiContainerCreativeSmoothScroll {
     private int nfrUi$captureWheel() {
         int wheel = Mouse.getEventDWheel();
         if (!SmoothScrollConfigAccess.creativeInventoryEnabled() || wheel == 0) return wheel;
-        GuiContainerCreative.ContainerCreative container = nfrUi$container();
-        int hiddenRows = Math.max(1, (container.itemList.size() + 8) / 9 - 5);
+        int hiddenRows = nfrUi$hiddenRows();
+        if (hiddenRows <= 0) {
+            nfrUi$scroller.sync(0.0F);
+            currentScroll = 0.0F;
+            return 0;
+        }
         float rowsPerNotch = SmoothScrollConfigAccess.wheelStep() / 18.0F;
         float delta = (wheel > 0 ? -rowsPerNotch : rowsPerNotch) / hiddenRows;
         nfrUi$scroller.scrollBy(delta, 1.0F, currentScroll);
@@ -35,6 +39,12 @@ public abstract class MixinGuiContainerCreativeSmoothScroll {
     private void nfrUi$update(int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
         if (!SmoothScrollConfigAccess.creativeInventoryEnabled()) {
             nfrUi$scroller.sync(currentScroll);
+            return;
+        }
+        if (nfrUi$hiddenRows() <= 0) {
+            currentScroll = 0.0F;
+            nfrUi$scroller.sync(0.0F);
+            nfrUi$container().scrollTo(0.0F);
             return;
         }
         if (!isScrolling) {
@@ -57,5 +67,10 @@ public abstract class MixinGuiContainerCreativeSmoothScroll {
     private GuiContainerCreative.ContainerCreative nfrUi$container() {
         return (GuiContainerCreative.ContainerCreative)
                 ((AccessorGuiContainer) (Object) this).nfrUi$getInventorySlots();
+    }
+
+    @Unique
+    private int nfrUi$hiddenRows() {
+        return Math.max(0, (nfrUi$container().itemList.size() + 8) / 9 - 5);
     }
 }

@@ -148,14 +148,23 @@ public final class NeofontrenderConfigScreen {
     private static NfrSettingsTabs tabs(ScreenSession session, Route selected) {
         List<NfrSettingsTabs.Tab> items = new ArrayList<>();
         for (NfrSettingsRoute route : NfrSettingsRoute.values()) {
-            items.add(new NfrSettingsTabs.Tab(() -> tr(route.titleKey), selected.builtin == route,
-                    () -> openRoute(session, Route.builtin(route))));
+            if (route != NfrSettingsRoute.ABOUT && route != NfrSettingsRoute.LICENSES) {
+                addBuiltinTab(items, session, selected, route);
+            }
         }
         for (neofontrender.api.client.settings.NfrSettingsPage page : session.extensionPages) {
             items.add(new NfrSettingsTabs.Tab(page::title, selected.extension == page,
                     () -> openRoute(session, Route.extension(page))));
         }
+        addBuiltinTab(items, session, selected, NfrSettingsRoute.ABOUT);
+        addBuiltinTab(items, session, selected, NfrSettingsRoute.LICENSES);
         return new NfrSettingsTabs(items, scroll -> session.draft.categoryScroll = scroll);
+    }
+
+    private static void addBuiltinTab(List<NfrSettingsTabs.Tab> items, ScreenSession session, Route selected,
+                                      NfrSettingsRoute route) {
+        items.add(new NfrSettingsTabs.Tab(() -> tr(route.titleKey), selected.builtin == route,
+                () -> openRoute(session, Route.builtin(route))));
     }
 
     private static ModularScreen createScreen(ModularPanel panel) {

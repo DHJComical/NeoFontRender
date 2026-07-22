@@ -14,6 +14,7 @@ final class TooltipConfig {
     static boolean enabled = true;
     static String renderStyle = "modernui";
     static boolean yieldToLegendaryTooltips = true;
+    static boolean yieldToObscureTooltips = false;
     static boolean rounded = true;
     static boolean centerTitle = true;
     static boolean titleBreak = true;
@@ -51,6 +52,7 @@ final class TooltipConfig {
         enabled = config.getBoolean("tooltip.enabled", true);
         renderStyle = normalizeStyle(config.getString("tooltip.style", "modernui"));
         yieldToLegendaryTooltips = config.getBoolean("tooltip.yieldToLegendaryTooltips", true);
+        yieldToObscureTooltips = config.getBoolean("tooltip.yieldToObscureTooltips", false);
         rounded = config.getBoolean("tooltip.rounded", true);
         centerTitle = config.getBoolean("tooltip.centerTitle", true);
         titleBreak = config.getBoolean("tooltip.titleBreak", true);
@@ -86,6 +88,7 @@ final class TooltipConfig {
         config.set("tooltip.enabled", enabled)
                 .set("tooltip.style", renderStyle)
                 .set("tooltip.yieldToLegendaryTooltips", yieldToLegendaryTooltips)
+                .set("tooltip.yieldToObscureTooltips", yieldToObscureTooltips)
                 .set("tooltip.rounded", rounded)
                 .set("tooltip.centerTitle", centerTitle)
                 .set("tooltip.titleBreak", titleBreak)
@@ -123,6 +126,7 @@ final class TooltipConfig {
         config.define("tooltip.enabled", true, "Replace Forge 1.12.2 tooltip layout and background.")
                 .define("tooltip.style", "modernui", "Renderer style: modernui, mica or legacy.")
                 .define("tooltip.yieldToLegendaryTooltips", true, "Yield when LegendaryTooltips is installed.")
+                .define("tooltip.yieldToObscureTooltips", false, "Let Obscure Tooltips draw its own panel and frame instead of combining its effects with NFR's modern panel.")
                 .define("tooltip.rounded", true, "Draw rounded antialiased corners.")
                 .define("tooltip.centerTitle", true, "Center the first tooltip line.")
                 .define("tooltip.titleBreak", true, "Draw a divider after the title.")
@@ -214,6 +218,7 @@ final class TooltipConfig {
         private final boolean originalEnabled = enabled;
         private final String originalRenderStyle = renderStyle;
         private final boolean originalYield = yieldToLegendaryTooltips;
+        private final boolean originalYieldObscure = yieldToObscureTooltips;
         private final boolean originalRounded = rounded;
         private final boolean originalCenterTitle = centerTitle;
         private final boolean originalTitleBreak = titleBreak;
@@ -246,6 +251,7 @@ final class TooltipConfig {
         void restore() {
             enabled = originalEnabled; renderStyle = originalRenderStyle;
             yieldToLegendaryTooltips = originalYield; rounded = originalRounded;
+            yieldToObscureTooltips = originalYieldObscure;
             centerTitle = originalCenterTitle; titleBreak = originalTitleBreak; adaptiveBorder = originalAdaptive;
             borderShading = originalBorderShading; borderCycleMillis = originalBorderCycleMillis;
             cornerRadius = originalCorner; borderWidth = originalBorder; shadowRadius = originalShadow;

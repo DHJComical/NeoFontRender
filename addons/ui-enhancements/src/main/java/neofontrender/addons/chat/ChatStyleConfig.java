@@ -5,16 +5,16 @@ import neofontrender.api.config.NfrConfigFile;
 
 public final class ChatStyleConfig {
     public static boolean enabled = true;
-    public static int background = 0xB012151B;
-    public static int border = 0xD08094AC;
-    public static int inputBackground = 0xD00B0D12;
-    public static int trayBackground = 0xC0101319;
-    public static int tabBackground = 0xB0181C24;
-    public static int activeTab = 0xD0255363;
-    public static int unreadTab = 0xD04A3D24;
-    public static int pingedTab = 0xD0682D38;
-    public static int hoveredTab = 0xD02B3442;
-    public static int scrollbar = 0xE0B8C2D0;
+    public static int background = 0x98000000;
+    public static int border = 0x80484848;
+    public static int inputBackground = 0xB0000000;
+    public static int trayBackground = 0xA0000000;
+    public static int tabBackground = 0x90101010;
+    public static int activeTab = 0xC0282828;
+    public static int unreadTab = 0xC03A3420;
+    public static int pingedTab = 0xC0502028;
+    public static int hoveredTab = 0xB0383838;
+    public static int scrollbar = 0xC0A0A0A0;
     public static int text = 0xFFFFFFFF;
     public static int borderWidth = 1;
     public static int opacityPercent = 100;
@@ -51,6 +51,7 @@ public final class ChatStyleConfig {
         text = parse(f.getString("chat.style.text", color(text)), text);
         borderWidth = f.getInt("chat.style.borderWidth", 1, 0, 8);
         opacityPercent = f.getInt("chat.style.opacityPercent", 100, 10, 100);
+        migrateOriginalBlueDefaults();
         f.save();
     }
 
@@ -80,6 +81,27 @@ public final class ChatStyleConfig {
     }
 
     private static String color(int value) { return String.format("#%08X", value); }
+
+    /** The addon was unpublished when this palette changed, so only its exact old defaults migrate. */
+    private static void migrateOriginalBlueDefaults() {
+        if (background != 0xB012151B || border != 0xD08094AC || inputBackground != 0xD00B0D12
+                || trayBackground != 0xC0101319 || tabBackground != 0xB0181C24
+                || activeTab != 0xD0255363 || unreadTab != 0xD04A3D24
+                || pingedTab != 0xD0682D38 || hoveredTab != 0xD02B3442
+                || scrollbar != 0xE0B8C2D0) return;
+        background = 0x98000000;
+        border = 0x80484848;
+        inputBackground = 0xB0000000;
+        trayBackground = 0xA0000000;
+        tabBackground = 0x90101010;
+        activeTab = 0xC0282828;
+        unreadTab = 0xC03A3420;
+        pingedTab = 0xC0502028;
+        hoveredTab = 0xB0383838;
+        scrollbar = 0xC0A0A0A0;
+        save();
+    }
+
     private static int parse(String value, int fallback) {
         try {
             String clean = value.startsWith("#") ? value.substring(1) : value;

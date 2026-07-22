@@ -1,6 +1,7 @@
 # Neo Font Render integration API
 
-NFR API version 2 exposes TOML storage and client settings-page registration. Integrations should
+NFR API version 3 exposes TOML storage, client settings-page registration, and information-page
+contributions. Integrations should
 declare NFR as a required or optional compile-time dependency as appropriate.
 
 ## TOML configuration
@@ -39,6 +40,30 @@ Each opening of the NFR settings screen calls `createSession()`. The returned se
 view with NFR's shared controls and receives `apply()` or `cancel()` from the common footer. Keep
 editable values in the session (or snapshot runtime values) so Cancel can restore them. Page ids
 must be namespaced, such as `examplemod:settings`.
+
+Addon pages are placed after NFR's functional pages. The built-in About and Open Source Licenses
+pages always remain at the bottom of the sidebar.
+
+## About and license contributions
+
+Addons can append attribution, project links, or bundled dependency licenses without creating a
+separate settings tab:
+
+```java
+NfrInfoPageRegistry.register(new NfrInfoPageContribution() {
+    public String id() { return "examplemod:licenses"; }
+    public NfrInfoPage page() { return NfrInfoPage.LICENSES; }
+    public List<NfrInfoLine> lines() {
+        return Arrays.asList(
+                NfrInfoLine.spaced("Example Mod - MIT", 0xD8D8D8),
+                NfrInfoLine.line("Bundled Library - Apache-2.0", 0xD8D8D8));
+    }
+});
+```
+
+Register during client pre-initialization. Contribution ids must be namespaced; `order()` controls
+their order within the selected information page. Supplier-based lines may be used for dynamic or
+localized text.
 
 ## Arc3D
 
