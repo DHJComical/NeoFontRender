@@ -1,16 +1,21 @@
 package neofontrender.splash;
 
+import neofontrender.NeoFontRender;
 import neofontrender.core.config.NeofontrenderConfig;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
 
 import java.awt.*;
 import java.awt.font.FontRenderContext;
 import java.awt.font.TextLayout;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -30,6 +35,7 @@ public final class SplashAwtBackend {
 
     private final Font font;
     private final FontRenderContext fontRenderContext;
+    private final float outlineStrokeWidth;
     private final Map<String, RenderedString> cache = new LinkedHashMap<String, RenderedString>(16, 0.75F, true) {
         @Override
         protected boolean removeEldestEntry(Map.Entry<String, RenderedString> eldest) {
@@ -43,22 +49,45 @@ public final class SplashAwtBackend {
 
     public SplashAwtBackend() {
         float size = resolveFontSize();
-        this.font = resolveFont().deriveFont(Math.max(4.0F, size));
+        ResolvedFont resolved = resolveFont();
+        this.font = resolved.font.deriveFont(Math.max(4.0F, size));
+        this.outlineStrokeWidth = SplashFontWeight.outlineStrokeWidth(
+                this.font.getSize2D(), resolved.weight.emboldenDelta);
         this.fontRenderContext = new FontRenderContext(null, true,
                 NeofontrenderConfig.fontFractionalMetrics());
+
+        if (resolved.weight.adjusted) {
+            NeoFontRender.LOGGER.info(
+                    "Splash font '{}' uses approximate AWT weight {} (source default={}, stroke={}px{})",
+                    this.font.getFontName(), resolved.weight.appliedTarget,
+                    resolved.weight.appliedTarget - resolved.weight.emboldenDelta,
+                    String.format(java.util.Locale.ROOT, "%.3f", outlineStrokeWidth),
+                    resolved.weight.clamped
+                            ? ", requested " + resolved.weight.requestedTarget + " was clamped"
+                            : "");
+        }
     }
 
-    private static Font resolveFont() {
+    private static ResolvedFont resolveFont() {
         for (String candidate : NeofontrenderConfig.fontFamily()) {
-            Font loaded = loadFont(candidate);
+            LoadedFont loaded = loadFont(candidate);
             if (loaded != null) {
-                return loaded.deriveFont(NeofontrenderConfig.fontStyle(), 1.0F);
+                return applyWeight(loaded);
             }
         }
-        return new Font(Font.SANS_SERIF, NeofontrenderConfig.fontStyle(), 1);
+        LoadedFont fallback = new LoadedFont(new Font(Font.SANS_SERIF, Font.PLAIN, 1), null);
+        return applyWeight(fallback);
     }
 
-    private static Font loadFont(String candidate) {
+    private static ResolvedFont applyWeight(LoadedFont loaded) {
+        SplashFontWeight.Resolution weight = SplashFontWeight.resolve(
+                loaded.weightAxis, NeofontrenderConfig.fontVariableWeight(),
+                NeofontrenderConfig.fontStyle(), loaded.font.getFontName());
+        Font styled = loaded.font.deriveFont(weight.awtStyle, 1.0F);
+        return new ResolvedFont(styled, weight);
+    }
+
+    private static LoadedFont loadFont(String candidate) {
         if (candidate == null || candidate.trim().isEmpty()) {
             return null;
         }
@@ -66,7 +95,7 @@ public final class SplashAwtBackend {
         try {
             File file = new File(name);
             if (file.isFile()) {
-                return Font.createFont(Font.TRUETYPE_FONT, file);
+                return loadFontBytes(Files.readAllBytes(file.toPath()));
             }
 
             int separator = name.indexOf(':');
@@ -75,7 +104,7 @@ public final class SplashAwtBackend {
                         + name.substring(separator + 1);
                 try (InputStream stream = SplashAwtBackend.class.getResourceAsStream(resourcePath)) {
                     if (stream != null) {
-                        return Font.createFont(Font.TRUETYPE_FONT, stream);
+                        return loadFontBytes(stream.readAllBytes());
                     }
                 }
                 return null;
@@ -83,12 +112,22 @@ public final class SplashAwtBackend {
 
             Font system = new Font(name, Font.PLAIN, 1);
             if (!Font.DIALOG.equals(system.getFamily()) || Font.DIALOG.equalsIgnoreCase(name)) {
-                return system;
+                return new LoadedFont(system, SplashFontWeight.inferSystemAxis(system, name));
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            NeoFontRender.LOGGER.debug("Could not load splash font candidate '{}'", name, e);
             // Try the next configured fallback.
         }
         return null;
+    }
+
+    private static LoadedFont loadFontBytes(byte[] data) throws Exception {
+        SplashFontWeight.WeightAxis weightAxis = SplashFontWeight.inspect(data);
+        Font font;
+        try (ByteArrayInputStream stream = new ByteArrayInputStream(data)) {
+            font = Font.createFont(Font.TRUETYPE_FONT, stream);
+        }
+        return new LoadedFont(font, weightAxis);
     }
 
     private static float resolveFontSize() {
@@ -113,27 +152,29 @@ public final class SplashAwtBackend {
             return;
         }
 
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, rendered.textureId);
+        try (TextGlState ignored = new TextGlState()) {
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, rendered.textureId);
 
-        // ModernSplash sets its configured theme color and fade alpha before calling the
-        // renderer. The method's black color argument is only a bitmap-font placeholder.
-        // Preserve the current GL color so dark mode and custom theme colors keep working.
-        float x0 = x + rendered.xOffset;
-        float y0 = y + rendered.baselineOffset;
-        float x1 = x0 + rendered.textureWidth;
-        float y1 = y0 + rendered.textureHeight;
+            // ModernSplash sets its configured theme color and fade alpha before calling the
+            // renderer. The method's black color argument is only a bitmap-font placeholder.
+            // Preserve the current GL color so dark mode and custom theme colors keep working.
+            float x0 = x + rendered.xOffset;
+            float y0 = y + rendered.baselineOffset;
+            float x1 = x0 + rendered.textureWidth;
+            float y1 = y0 + rendered.textureHeight;
 
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glTexCoord2f(0.0F, 0.0F);
-        GL11.glVertex2f(x0, y0);
-        GL11.glTexCoord2f(0.0F, 1.0F);
-        GL11.glVertex2f(x0, y1);
-        GL11.glTexCoord2f(1.0F, 1.0F);
-        GL11.glVertex2f(x1, y1);
-        GL11.glTexCoord2f(1.0F, 0.0F);
-        GL11.glVertex2f(x1, y0);
-        GL11.glEnd();
+            GL11.glBegin(GL11.GL_QUADS);
+            GL11.glTexCoord2f(0.0F, 0.0F);
+            GL11.glVertex2f(x0, y0);
+            GL11.glTexCoord2f(0.0F, 1.0F);
+            GL11.glVertex2f(x0, y1);
+            GL11.glTexCoord2f(1.0F, 1.0F);
+            GL11.glVertex2f(x1, y1);
+            GL11.glTexCoord2f(1.0F, 0.0F);
+            GL11.glVertex2f(x1, y0);
+            GL11.glEnd();
+        }
     }
 
     private synchronized RenderedString renderToCache(String text) {
@@ -155,7 +196,7 @@ public final class SplashAwtBackend {
             return RenderedString.empty(logicalWidth);
         }
 
-        int padding = OVERSAMPLE * 2;
+        int padding = rasterPadding(outlineStrokeWidth);
         int width = pixelBounds.width + padding * 2;
         int height = pixelBounds.height + padding * 2;
         float drawX = padding - pixelBounds.x;
@@ -168,6 +209,11 @@ public final class SplashAwtBackend {
         g.fillRect(0, 0, width, height);
 
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION,
+                RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
+                RenderingHints.VALUE_STROKE_PURE);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 NeofontrenderConfig.fontLcdSubpixel()
                         ? RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB
@@ -178,7 +224,7 @@ public final class SplashAwtBackend {
                         : RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
 
         g.setColor(Color.WHITE);
-        layout.draw(g, drawX, baseline);
+        drawLayout(g, layout, drawX, baseline, outlineStrokeWidth);
         g.dispose();
 
         int[] pixels = image.getRGB(0, 0, width, height, null, 0, width);
@@ -204,6 +250,26 @@ public final class SplashAwtBackend {
 
         return new RenderedString(textureId, logicalWidth, textureWidth, textureHeight,
                 xOffset, baselineOffset);
+    }
+
+    static void drawLayout(Graphics2D graphics, TextLayout layout, float drawX, float baseline,
+                           float strokeWidth) {
+        graphics.setComposite(AlphaComposite.SrcOver);
+        if (strokeWidth > 0.0F) {
+            graphics.setStroke(new BasicStroke(strokeWidth, BasicStroke.CAP_ROUND,
+                    BasicStroke.JOIN_ROUND));
+            graphics.draw(layout.getOutline(
+                    AffineTransform.getTranslateInstance(drawX, baseline)));
+        }
+        layout.draw(graphics, drawX, baseline);
+    }
+
+    static int rasterPadding(float strokeWidth) {
+        int padding = OVERSAMPLE * 2;
+        if (strokeWidth > 0.0F) {
+            padding += (int) Math.ceil(strokeWidth / 2.0F) + 1;
+        }
+        return padding;
     }
 
     private static int uploadTexture(int[] src, int srcW, int srcH, Bounds bounds) {
@@ -263,6 +329,58 @@ public final class SplashAwtBackend {
 
         boolean isEmpty() {
             return maxX < 0 || maxY < 0;
+        }
+    }
+
+    private static final class LoadedFont {
+        final Font font;
+        final SplashFontWeight.WeightAxis weightAxis;
+
+        LoadedFont(Font font, SplashFontWeight.WeightAxis weightAxis) {
+            this.font = font;
+            this.weightAxis = weightAxis;
+        }
+    }
+
+    private static final class ResolvedFont {
+        final Font font;
+        final SplashFontWeight.Resolution weight;
+
+        ResolvedFont(Font font, SplashFontWeight.Resolution weight) {
+            this.font = font;
+            this.weight = weight;
+        }
+    }
+
+    /** Keeps Forge's alpha test from cutting off anti-aliased edge coverage. */
+    private static final class TextGlState implements AutoCloseable {
+        private final boolean blendEnabled = GL11.glIsEnabled(GL11.GL_BLEND);
+        private final boolean alphaTestEnabled = GL11.glIsEnabled(GL11.GL_ALPHA_TEST);
+        private final int srcRgb = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB);
+        private final int dstRgb = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB);
+        private final int srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
+        private final int dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
+
+        TextGlState() {
+            GL11.glEnable(GL11.GL_BLEND);
+            GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+                    GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glDisable(GL11.GL_ALPHA_TEST);
+        }
+
+        @Override
+        public void close() {
+            GL14.glBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            if (alphaTestEnabled) {
+                GL11.glEnable(GL11.GL_ALPHA_TEST);
+            } else {
+                GL11.glDisable(GL11.GL_ALPHA_TEST);
+            }
+            if (blendEnabled) {
+                GL11.glEnable(GL11.GL_BLEND);
+            } else {
+                GL11.glDisable(GL11.GL_BLEND);
+            }
         }
     }
 
